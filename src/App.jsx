@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { initializeApp, getApps, getApp, deleteApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { 
     getFirestore, collection, query, onSnapshot, doc, setDoc, deleteDoc, 
     orderBy, serverTimestamp, arrayUnion, getDoc
@@ -15,10 +15,10 @@ import {
 } from 'lucide-react';
 
 // =================================================================
-// CONFIGURATION ET INITIALISATION FIREBASE (UNE SEULE FOIS)
+// CONFIGURATION ET INITIALISATION FIREBASE (STABLE)
 // =================================================================
 const firebaseConfig = {
-    apiKey: "AlzaSyDonMYAFvy4kB8NmxSYF77bpJ5IRTwptR4",
+    apiKey: "AIzaSyBuWquEXyrx7EEMLcOsRJ81ThnlUhrnIew", // <-- NOUVELLE CLÉ INSÉRÉE
     authDomain: "aod-tracker-os.firebaseapp.com",
     projectId: "aod-tracker-os",
     storageBucket: "aod-tracker-os.appspot.com",
@@ -26,13 +26,13 @@ const firebaseConfig = {
     appId: "1:429289937311:web:1ab993b09899afc2b245aa",
 };
 
-// Initialisation de Firebase une seule fois pour toute l'application
+// Initialisation de Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 const APP_ID = "aod-tracker-os";
-const ADMIN_BOOTSTRAP_EMAIL = "jullien.gault@orange-store.com"; // Email pour le premier admin
+const ADMIN_BOOTSTRAP_EMAIL = "jullien.gault@orange-store.com";
 
 const ORDER_STATUSES = {
     COMMANDÉ: 'Commandé',
@@ -45,17 +45,21 @@ const ORDER_STATUSES = {
 // =================================================================
 const useAuth = () => {
     const [user, setUser] = useState(null);
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [userRole, setUserRole] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
                 const userDocRef = doc(db, 'users', currentUser.uid);
-                let userDocSnap = await getDoc(userDocRef);
+                const userDocSnap = await getDoc(userDocRef);
 
-                // Bootstrap pour le premier admin s'il n'a pas de document dans Firestore
-                if (!userDocSnap.exists() && currentUser.email === ADMIN_BOOTSTRAP_EMAIL) {
+                if (userDocSnap.exists()) {
+                    const userData = userDocSnap.data();
+                    setUser({ ...currentUser, ...userData });
+                    setUserRole(userData.role);
+                } else if (currentUser.email === ADMIN_BOOTSTRAP_EMAIL) {
+                    console.log("Premier admin détecté, création du profil...");
                     const adminData = {
                         displayName: currentUser.displayName || currentUser.email.split('@')[0],
                         email: currentUser.email,
@@ -63,69 +67,42 @@ const useAuth = () => {
                         createdAt: serverTimestamp()
                     };
                     await setDoc(userDocRef, adminData);
-                    userDocSnap = await getDoc(userDocRef); // Re-fetch doc
-                }
-
-                if (userDocSnap.exists()) {
-                    const userData = userDocSnap.data();
-                    setUser({ ...currentUser, ...userData });
-                    setIsAdmin(userData.role === 'admin');
+                    setUser({ ...currentUser, ...adminData });
+                    setUserRole('admin');
                 } else {
-                    // Utilisateur authentifié mais pas de document dans 'users' (cas non-admin)
                     setUser(currentUser);
-                    setIsAdmin(false);
+                    setUserRole(null);
                 }
             } else {
                 setUser(null);
-                setIsAdmin(false);
+                setUserRole(null);
             }
             setLoading(false);
         });
-
         return () => unsubscribe();
     }, []);
 
-    return { user, isAdmin, loading };
+    return { user, isAdmin: userRole === 'admin', loading };
 };
-
 
 // =================================================================
 // COMPOSANTS UI
 // =================================================================
+const AnimationStyles = () => (<style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .5s ease-in-out}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}`}</style>);
 
-const AnimationStyles = () => (
-    <style>{`
-      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
-      @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
-    `}</style>
+const Modal = ({ children, onClose, size = 'md' }) => ReactDOM.createPortal(
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+        <div className={`bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-${size} border border-gray-700 relative animate-fade-in-up`} onClick={e => e.stopPropagation()}>
+            <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24} /></button>
+            {children}
+        </div>
+    </div>, document.body
 );
-
-const Modal = ({ children, onClose, size = 'md' }) => {
-    const sizeClasses = {
-        sm: 'max-w-sm',
-        md: 'max-w-md',
-        lg: 'max-w-lg',
-        xl: 'max-w-xl'
-    };
-    return ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className={`bg-gray-800 p-8 rounded-2xl shadow-2xl w-full ${sizeClasses[size]} border border-gray-700 relative animate-fade-in-up`} onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24} /></button>
-                {children}
-            </div>
-        </div>,
-        document.body
-    );
-};
 
 const ConfirmationModal = ({ onConfirm, onCancel, title, message }) => (
     <Modal onClose={onCancel} size="sm">
         <div className="text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-500/20">
-                 <AlertTriangle className="h-6 w-6 text-yellow-400" />
-            </div>
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-500/20"><AlertTriangle className="h-6 w-6 text-yellow-400" /></div>
             <h3 className="mt-4 text-xl font-bold text-white">{title}</h3>
             <p className="mt-2 text-sm text-gray-400">{message}</p>
             <div className="mt-6 flex gap-4">
@@ -139,25 +116,30 @@ const ConfirmationModal = ({ onConfirm, onCancel, title, message }) => (
 const LoginForm = ({ onLogin, authError }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    
-    const handleSubmit = (e) => {
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        onLogin(email, password);
+        setIsLoading(true);
+        await onLogin(email, password);
+        setIsLoading(false);
     };
 
     return (
         <div>
-            <h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion</h2>
+            <h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion AOD Tracker</h2>
             <form onSubmit={handleSubmit} className="space-y-6">
                 <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
                 <input type="password" placeholder="Mot de passe" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
                 {authError && <p className="text-red-400 text-sm text-center">{authError}</p>}
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button>
+                <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:bg-gray-500">
+                    {isLoading ? "Connexion..." : "Se connecter"}
+                </button>
             </form>
         </div>
     );
 };
-
+// ... (autres composants UI, pas de changement majeur ici)
 const OrderForm = ({ onSave, onCancel, order, advisors, currentUser, isAdmin }) => {
     const [clientName, setClientName] = useState(order?.clientName || '');
     const [accessory, setAccessory] = useState(order?.accessory || '');
@@ -213,11 +195,7 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
         setIsRegistering(true);
         try {
             await onRegister({ displayName, email, password, role });
-            // Reset form on success
-            setDisplayName('');
-            setEmail('');
-            setPassword('');
-            setRole('conseiller');
+            setDisplayName(''); setEmail(''); setPassword(''); setRole('conseiller');
         } catch(err) {
             setError(err.message);
         } finally {
@@ -240,8 +218,8 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
                         <option value="admin">Administrateur</option>
                     </select>
                     {error && <p className="text-red-400 text-sm">{error}</p>}
-                    <button type="submit" disabled={isRegistering} className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-2 px-4 rounded-lg disabled:bg-gray-500 disabled:cursor-not-allowed">
-                        {isRegistering ? 'Création en cours...' : 'Créer l\'utilisateur'}
+                    <button type="submit" disabled={isRegistering} className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-2 px-4 rounded-lg disabled:bg-gray-500">
+                        {isRegistering ? 'Création...' : "Créer l'utilisateur"}
                     </button>
                 </form>
             </div>
@@ -255,8 +233,7 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
                                 <p className="text-xs text-gray-400">{adv.email}</p>
                             </div>
                             <span className={`inline-flex items-center gap-2 px-2 py-1 text-xs font-medium rounded-full ${adv.role === 'admin' ? 'bg-blue-500/20 text-blue-300' : 'bg-green-500/20 text-green-300'}`}>
-                                {adv.role === 'admin' ? <ShieldCheck size={14} /> : <UserCheck size={14} />}
-                                {adv.role}
+                                {adv.role === 'admin' ? <ShieldCheck size={14} /> : <UserCheck size={14} />} {adv.role}
                             </span>
                         </li>
                     ))}
@@ -268,44 +245,27 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
 };
 
 const StatusPill = ({ status }) => {
-    const statusInfo = {
-        [ORDER_STATUSES.COMMANDÉ]: { icon: Clock, color: 'bg-blue-500/20 text-blue-300', ring: 'ring-blue-500/30' },
-        [ORDER_STATUSES.LIVRÉ]: { icon: PackageCheck, color: 'bg-yellow-500/20 text-yellow-300', ring: 'ring-yellow-500/30' },
-        [ORDER_STATUSES.RÉCUPÉRÉ]: { icon: CheckCircle, color: 'bg-green-500/20 text-green-300', ring: 'ring-green-500/30' },
-    };
-    const { icon: Icon, color, ring } = statusInfo[status] || { icon: Clock, color: 'bg-gray-500/20 text-gray-300', ring: 'ring-gray-500/30' };
-
-    return (
-        <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-medium rounded-full ${color} ring-1 ring-inset ${ring}`}>
-            <Icon size={16} /> {status}
-        </span>
-    );
+    const statusInfo = {[ORDER_STATUSES.COMMANDÉ]:{i:Clock,c:'bg-blue-500/20 text-blue-300',r:'ring-blue-500/30'},[ORDER_STATUSES.LIVRÉ]:{i:PackageCheck,c:'bg-yellow-500/20 text-yellow-300',r:'ring-yellow-500/30'},[ORDER_STATUSES.RÉCUPÉRÉ]:{i:CheckCircle,c:'bg-green-500/20 text-green-300',r:'ring-green-500/30'}};
+    const { i: Icon, c, r } = statusInfo[status] || { i: Clock, c: 'bg-gray-500/20 text-gray-300', r: 'ring-gray-500/30' };
+    return <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-medium rounded-full ${c} ring-1 ring-inset ${r}`}><Icon size={16} /> {status}</span>;
 };
 
 const OrderCard = ({ order, onStatusChange, onEdit, onDelete, isAdmin }) => {
     const [expanded, setExpanded] = useState(false);
-
     return (
         <div className="bg-gray-800 rounded-2xl shadow-lg p-5 transition-all duration-300 hover:shadow-2xl hover:bg-gray-700/50 animate-fade-in-up">
             <div className="flex justify-between items-start">
                 <div>
                     <h3 className="text-xl font-bold text-white">{order.clientName}</h3>
                     <p className="text-gray-300">{order.accessory}</p>
-                    <p className="text-xs text-gray-400 mt-1">Par {order.advisorName} - {order.createdAt ? new Date(order.createdAt.toDate()).toLocaleDateString('fr-FR') : 'Date inconnue'}</p>
+                    <p className="text-xs text-gray-400 mt-1">Par {order.advisorName} - {order.createdAt?.toDate().toLocaleDateString('fr-FR')}</p>
                 </div>
                 <StatusPill status={order.status} />
             </div>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                     {Object.values(ORDER_STATUSES).map(status => (
-                        <button 
-                            key={status}
-                            onClick={() => onStatusChange(order.id, status)}
-                            disabled={order.status === status}
-                            className={`px-3 py-1 text-xs rounded-md transition-colors ${order.status === status ? 'bg-blue-600 text-white cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-600'}`}
-                        >
-                            {status.split(' ')[0]}
-                        </button>
+                        <button key={status} onClick={() => onStatusChange(order.id, status)} disabled={order.status === status} className={`px-3 py-1 text-xs rounded-md transition-colors ${order.status===status?'bg-blue-600 text-white cursor-not-allowed':'bg-gray-700 hover:bg-gray-600'}`}>{status.split(' ')[0]}</button>
                     ))}
                 </div>
                 {isAdmin && (
@@ -315,21 +275,10 @@ const OrderCard = ({ order, onStatusChange, onEdit, onDelete, isAdmin }) => {
                     </div>
                 )}
             </div>
-            <div className="mt-4">
-                <button onClick={() => setExpanded(!expanded)} className="text-sm text-blue-400 flex items-center gap-1">
-                    Historique <ChevronDown className={`transition-transform ${expanded ? 'rotate-180' : ''}`} size={16} />
-                </button>
-                {expanded && (
-                    <ul className="mt-2 space-y-2 text-xs text-gray-400 pl-2 border-l-2 border-gray-700">
-                        {order.history?.slice().reverse().map((entry, i) => (
-                            <li key={i} className="pl-2">
-                                <p><strong>{entry.status}</strong> par {entry.updatedBy}</p>
-                                <p>{entry.updatedAt ? new Date(entry.updatedAt.toDate()).toLocaleString('fr-FR') : 'Date inconnue'}</p>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
+            {order.history && <div className="mt-4">
+                <button onClick={() => setExpanded(!expanded)} className="text-sm text-blue-400 flex items-center gap-1">Historique <ChevronDown className={`transition-transform ${expanded?'rotate-180':''}`} size={16}/></button>
+                {expanded && <ul className="mt-2 space-y-2 text-xs text-gray-400 pl-2 border-l-2 border-gray-700">{[...order.history].reverse().map((e, i)=><li key={i} className="pl-2"><p><strong>{e.status}</strong> par {e.updatedBy}</p><p>{e.updatedAt?.toDate().toLocaleString('fr-FR')}</p></li>)}</ul>}
+            </div>}
         </div>
     );
 };
@@ -341,152 +290,93 @@ export default function App() {
     const { user, isAdmin, loading } = useAuth();
     const [orders, setOrders] = useState([]);
     const [advisors, setAdvisors] = useState([]);
-    const [isLoadingData, setIsLoadingData] = useState(true);
+    const [isDataLoading, setIsDataLoading] = useState(true);
     const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null);
     const [authError, setAuthError] = useState(null);
     const [confirmAction, setConfirmAction] = useState(null);
 
-    // Change le titre de l'onglet du navigateur
-    useEffect(() => {
-        document.title = "AOD Tracker OS";
-    }, []);
+    useEffect(() => { document.title = "AOD Tracker OS"; }, []);
 
-    // Fetch Advisors (Users)
     useEffect(() => {
-        const q = query(collection(db, 'users'), orderBy('displayName'));
-        const unsubscribe = onSnapshot(q, snapshot => {
-            const usersList = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-            setAdvisors(usersList);
-        });
-        return () => unsubscribe();
-    }, []);
+        if (!user) return;
+        const qUsers = query(collection(db, 'users'), orderBy('displayName'));
+        const unsubUsers = onSnapshot(qUsers, snap => setAdvisors(snap.docs.map(d => ({ uid: d.id, ...d.data() }))));
+        
+        const qOrders = query(collection(db, `artifacts/${APP_ID}/public/data/orders`), orderBy('createdAt', 'desc'));
+        const unsubOrders = onSnapshot(qOrders, snap => {
+            setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setIsDataLoading(false);
+        }, err => { console.error(err); setIsDataLoading(false); });
 
-    // Fetch Orders
-    useEffect(() => {
-        setIsLoadingData(true);
-        const q = query(collection(db, `artifacts/${APP_ID}/public/data/orders`), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, snapshot => {
-            setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            setIsLoadingData(false);
-        }, err => {
-            console.error("Erreur de lecture des commandes:", err);
-            setIsLoadingData(false);
-        });
-        return () => unsubscribe();
-    }, []);
+        return () => { unsubUsers(); unsubOrders(); };
+    }, [user]);
 
     const handleLogin = useCallback(async (email, password) => {
         setAuthError(null);
+        console.log(`Tentative de connexion avec : ${email}`);
         try {
             await signInWithEmailAndPassword(auth, email, password);
+            console.log("Connexion réussie !");
         } catch (error) {
-            console.error("Erreur de connexion (code):", error.code);
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+            console.error("Erreur de connexion Firebase :", error.code, error.message);
+            if (['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential'].includes(error.code)) {
                 setAuthError("Email ou mot de passe incorrect.");
             } else {
-                setAuthError("Une erreur de connexion est survenue.");
+                setAuthError("Une erreur de connexion est survenue. Vérifiez la console pour les détails.");
             }
         }
     }, []);
 
-    const handleLogout = useCallback(() => {
-        signOut(auth);
-    }, []);
+    const handleLogout = useCallback(() => { signOut(auth); }, []);
     
     const handleRegisterUser = useCallback(async ({ displayName, email, password, role }) => {
-        let tempApp;
+        const tempAppForRegistration = initializeApp(firebaseConfig, `temp-app-${Date.now()}`);
         try {
-            // Utilise une instance temporaire de l'app pour créer un utilisateur tout en étant connecté en tant qu'admin
-            tempApp = initializeApp(firebaseConfig, 'tempAppForRegistration');
-            const tempAuth = getAuth(tempApp);
-
+            const tempAuth = getAuth(tempAppForRegistration);
             const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
             const newUser = userCredential.user;
-
             await updateProfile(newUser, { displayName });
-
-            await setDoc(doc(db, 'users', newUser.uid), {
-                displayName,
-                email,
-                role,
-                createdAt: serverTimestamp()
-            });
-            
+            await setDoc(doc(db, 'users', newUser.uid), { displayName, email, role, createdAt: serverTimestamp() });
             await signOut(tempAuth);
         } catch (error) {
-            console.error("Erreur de création d'utilisateur:", error.code, error.message);
-            if (error.code === 'auth/email-already-in-use') {
-                 throw new Error("Cet email est déjà utilisé.");
-            }
-            throw new Error("Une erreur est survenue lors de la création.");
+            console.error("Erreur de création d'utilisateur:", error);
+            throw new Error(error.code === 'auth/email-already-in-use' ? "Cet email est déjà utilisé." : "Erreur lors de la création.");
         } finally {
-            // Nettoie l'instance temporaire de l'app
-            if (tempApp) {
-                await deleteApp(tempApp);
-            }
+            await deleteApp(tempAppForRegistration);
         }
     }, []);
 
     const handleSaveOrder = useCallback(async (orderData) => {
         if (!user) return;
-        const orderId = editingOrder?.id || doc(collection(db, `artifacts/${APP_ID}/public/data/orders`)).id;
-        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
-
+        const id = editingOrder?.id || doc(collection(db, `artifacts/${APP_ID}/public/data/orders`)).id;
+        const ref = doc(db, `artifacts/${APP_ID}/public/data/orders`, id);
         try {
             if (editingOrder) {
-                await setDoc(orderRef, orderData, { merge: true });
+                await setDoc(ref, orderData, { merge: true });
             } else {
-                const newOrder = {
-                    ...orderData,
-                    id: orderId,
-                    status: ORDER_STATUSES.COMMANDÉ,
-                    createdAt: serverTimestamp(),
-                    history: [{
-                        status: ORDER_STATUSES.COMMANDÉ,
-                        updatedAt: serverTimestamp(),
-                        updatedBy: user.displayName || user.email
-                    }]
-                };
-                await setDoc(orderRef, newOrder);
+                const newOrder = { ...orderData, id, status: ORDER_STATUSES.COMMANDÉ, createdAt: serverTimestamp(), history: [{ status: ORDER_STATUSES.COMMANDÉ, updatedAt: serverTimestamp(), updatedBy: user.displayName || user.email }]};
+                await setDoc(ref, newOrder);
             }
-            setIsOrderModalOpen(false);
-            setEditingOrder(null);
-        } catch (error) {
-            console.error("Erreur d'enregistrement:", error);
-        }
+            setIsOrderModalOpen(false); setEditingOrder(null);
+        } catch (e) { console.error("Erreur d'enregistrement:", e); }
     }, [user, editingOrder]);
     
     const handleStatusChange = useCallback(async (orderId, newStatus) => {
         if (!user) return;
-        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
-        const historyEntry = {
-            status: newStatus,
-            updatedAt: serverTimestamp(),
-            updatedBy: user.displayName || user.email
-        };
-        try {
-            await setDoc(orderRef, { 
-                status: newStatus,
-                history: arrayUnion(historyEntry)
-            }, { merge: true });
-        } catch (error) {
-            console.error("Erreur de mise à jour du statut:", error);
-        }
+        const ref = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
+        const historyEntry = { status: newStatus, updatedAt: serverTimestamp(), updatedBy: user.displayName || user.email };
+        try { await setDoc(ref, { status: newStatus, history: arrayUnion(historyEntry) }, { merge: true }); } catch (e) { console.error("Erreur de statut:", e); }
     }, [user]);
 
     const handleDeleteOrder = (orderId) => {
         setConfirmAction({
             title: "Supprimer la commande ?",
-            message: "Cette action est irréversible. La commande sera définitivement supprimée.",
+            message: "Cette action est irréversible et la commande sera définitivement supprimée.",
             onConfirm: async () => {
-                const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
-                try {
-                    await deleteDoc(orderRef);
-                } catch (error) {
-                    console.error("Erreur de suppression:", error);
-                }
+                const ref = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
+                try { await deleteDoc(ref); } catch (e) { console.error("Erreur de suppression:", e); }
                 setConfirmAction(null);
             }
         });
@@ -500,11 +390,7 @@ export default function App() {
         return (
             <div className="bg-gray-900 min-h-screen flex items-center justify-center">
                  <AnimationStyles />
-                 <div className="w-full max-w-sm">
-                     <Modal onClose={() => {}}>
-                         <LoginForm onLogin={handleLogin} authError={authError}/>
-                     </Modal>
-                 </div>
+                 <Modal onClose={() => {}}><LoginForm onLogin={handleLogin} authError={authError}/></Modal>
             </div>
         );
     }
@@ -512,33 +398,9 @@ export default function App() {
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
             <AnimationStyles />
-            {isOrderModalOpen && (
-                <Modal onClose={() => { setIsOrderModalOpen(false); setEditingOrder(null); }}>
-                    <OrderForm 
-                        onSave={handleSaveOrder} 
-                        onCancel={() => { setIsOrderModalOpen(false); setEditingOrder(null); }}
-                        order={editingOrder}
-                        advisors={advisors}
-                        currentUser={user}
-                        isAdmin={isAdmin}
-                    />
-                </Modal>
-            )}
-            
-            {isAdmin && isUserModalOpen && (
-                <UserManagementModal
-                    advisors={advisors}
-                    onRegister={handleRegisterUser}
-                    onClose={() => setIsUserModalOpen(false)}
-                />
-            )}
-            
-            {confirmAction && (
-                <ConfirmationModal 
-                    {...confirmAction}
-                    onCancel={() => setConfirmAction(null)}
-                />
-            )}
+            {isOrderModalOpen && <Modal onClose={() => { setIsOrderModalOpen(false); setEditingOrder(null); }}><OrderForm onSave={handleSaveOrder} onCancel={() => { setIsOrderModalOpen(false); setEditingOrder(null); }} order={editingOrder} advisors={advisors} currentUser={user} isAdmin={isAdmin} /></Modal>}
+            {isAdmin && isUserModalOpen && <UserManagementModal advisors={advisors} onRegister={handleRegisterUser} onClose={() => setIsUserModalOpen(false)} />}
+            {confirmAction && <ConfirmationModal {...confirmAction} onCancel={() => setConfirmAction(null)} />}
 
             <div className="max-w-4xl mx-auto">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -548,17 +410,15 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-gray-300 flex items-center gap-2">{user.displayName || user.email} {isAdmin && <span className="text-xs font-bold text-blue-300 bg-blue-500/20 px-2 py-1 rounded-full">Admin</span>}</span>
-                        {isAdmin && (
-                            <button onClick={() => setIsUserModalOpen(true)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2"><Users size={18}/> Gérer</button>
-                        )}
+                        {isAdmin && <button onClick={() => setIsUserModalOpen(true)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2"><Users size={18}/> Gérer</button>}
                         <button onClick={() => { setEditingOrder(null); setIsOrderModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2"><Plus size={18}/> Ajouter</button>
                         <button onClick={handleLogout} title="Se déconnecter" className="text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800 hover:bg-gray-700"><LogOut size={20}/></button>
                     </div>
                 </header>
 
                 <main>
-                    {isLoadingData ? (
-                        <div className="text-center py-10"><p>Chargement des commandes...</p></div>
+                    {isDataLoading ? (
+                        <div className="text-center py-10"><p>Chargement des données...</p></div>
                     ) : orders.length === 0 ? (
                         <div className="text-center py-20 bg-gray-800 rounded-2xl">
                             <h2 className="text-2xl font-semibold text-gray-300">Aucune commande en cours.</h2>
@@ -567,14 +427,7 @@ export default function App() {
                     ) : (
                         <div className="space-y-4">
                             {orders.map(order => (
-                                <OrderCard 
-                                    key={order.id} 
-                                    order={order} 
-                                    onStatusChange={handleStatusChange}
-                                    onEdit={order => { setEditingOrder(order); setIsOrderModalOpen(true); }}
-                                    onDelete={handleDeleteOrder}
-                                    isAdmin={isAdmin}
-                                />
+                                <OrderCard key={order.id} order={order} onStatusChange={handleStatusChange} onEdit={o => { setEditingOrder(o); setIsOrderModalOpen(true); }} onDelete={handleDeleteOrder} isAdmin={isAdmin} />
                             ))}
                         </div>
                     )}
