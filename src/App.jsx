@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
-import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText } from 'lucide-react';
+import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search } from 'lucide-react';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES
@@ -129,7 +129,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Adjusted max-w and added overflow-y-auto */}
                 <button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -343,12 +343,12 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Added overflow-y-auto and max-h */}
                 <button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
                 <h2 className="text-2xl font-bold text-white mb-6 text-center">Historique de la commande: {order.itemName}</h2>
-                <div className="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-4 pr-2 custom-scrollbar"> {/* Removed max-h-96 here as it's now on the parent div */}
                     {order.history && order.history.length > 0 ? (
                         order.history.map((event, index) => (
                             <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4">
@@ -470,7 +470,7 @@ const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdv
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Adjusted max-w and added overflow-y-auto */}
                 <button onClick={onClose} aria-label="Fermer la gestion des conseillers" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -560,6 +560,13 @@ export default function App() {
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
     const [showAdvisorManagement, setShowAdvisorManagement] = useState(false); // New state for advisor management UI
 
+    // New states for filtering and sorting
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState('All'); // 'All' or specific status name
+    const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All'); // 'All' or advisor email
+    const [sortOrder, setSortOrder] = useState('orderDateDesc'); // Default sort: Date (newest first)
+
+
     // Memoized map of advisors for quick lookup
     const advisorsMap = useMemo(() => {
         return advisors.reduce((acc, advisor) => {
@@ -622,6 +629,7 @@ export default function App() {
                                                 { name: 'Marvyn', email: 'marvyn@orange-store.com' },
                                                 { name: 'Tom', email: 'tom@orange-store.com' }]) {
                             try {
+                                // Use the email as the document ID for advisors for easy lookup
                                 await setDoc(doc(advisorsColRef, advisor.email.toLowerCase()), advisor);
                             } catch (e) {
                                 console.error("Error setting default advisor:", e);
@@ -660,6 +668,61 @@ export default function App() {
         );
         return () => unsubscribe();
     }, [authReady, db, currentUser]); // Rerun if currentUser changes
+
+    // Filter and sort orders
+    const filteredAndSortedOrders = useMemo(() => {
+        let currentOrders = [...orders];
+
+        // 1. Filter by Status
+        if (selectedStatusFilter !== 'All') {
+            currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter);
+        }
+
+        // 2. Filter by Advisor
+        if (selectedAdvisorFilter !== 'All') {
+            currentOrders = currentOrders.filter(order =>
+                order.orderedBy && order.orderedBy.email && order.orderedBy.email.toLowerCase() === selectedAdvisorFilter.toLowerCase()
+            );
+        }
+
+        // 3. Filter by Search Term (client name, phone, email, item name, receipt number)
+        if (searchTerm.trim()) {
+            const lowerCaseSearchTerm = searchTerm.trim().toLowerCase();
+            currentOrders = currentOrders.filter(order =>
+                (order.clientFirstName && order.clientFirstName.toLowerCase().includes(lowerCaseSearchTerm)) ||
+                (order.clientLastName && order.clientLastName.toLowerCase().includes(lowerCaseSearchTerm)) ||
+                (order.clientEmail && order.clientEmail.toLowerCase().includes(lowerCaseSearchTerm)) ||
+                (order.clientPhone && order.clientPhone.toLowerCase().includes(lowerCaseSearchTerm)) ||
+                (order.itemName && order.itemName.toLowerCase().includes(lowerCaseSearchTerm)) ||
+                (order.receiptNumber && order.receiptNumber.toLowerCase().includes(lowerCaseSearchTerm))
+            );
+        }
+
+        // 4. Sort
+        currentOrders.sort((a, b) => {
+            if (sortOrder === 'orderDateDesc') {
+                return new Date(b.orderDate) - new Date(a.orderDate);
+            } else if (sortOrder === 'orderDateAsc') {
+                return new Date(a.orderDate) - new Date(b.orderDate);
+            } else if (sortOrder === 'clientNameAsc') {
+                const nameA = `${a.clientLastName} ${a.clientFirstName}`.toLowerCase();
+                const nameB = `${b.clientLastName} ${b.clientFirstName}`.toLowerCase();
+                return nameA.localeCompare(nameB);
+            } else if (sortOrder === 'clientNameDesc') {
+                const nameA = `${a.clientLastName} ${a.clientFirstName}`.toLowerCase();
+                const nameB = `${b.clientLastName} ${b.clientFirstName}`.toLowerCase();
+                return nameB.localeCompare(nameA);
+            } else if (sortOrder === 'itemNameAsc') {
+                return (a.itemName || '').toLowerCase().localeCompare((b.itemName || '').toLowerCase());
+            } else if (sortOrder === 'itemNameDesc') {
+                return (b.itemName || '').toLowerCase().localeCompare((a.itemName || '').toLowerCase());
+            }
+            return 0;
+        });
+
+        return currentOrders;
+    }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, sortOrder]);
+
 
     // Handle user login
     const handleLogin = useCallback(async (email, password) => {
@@ -1000,6 +1063,66 @@ export default function App() {
                     </div>
                 </header>
 
+                {/* New Filter and Sort Controls */}
+                {currentUser && ( // Only show filters/sort if a user is logged in
+                    <div className="flex flex-wrap items-center gap-4 mb-8">
+                        {/* Search Input */}
+                        <div className="relative flex-grow min-w-[200px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Rechercher (client, accessoire, ticket...)"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white"
+                            />
+                        </div>
+
+                        {/* Status Filter Dropdown */}
+                        <select
+                            value={selectedStatusFilter}
+                            onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                            className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="All">Tous les statuts</option>
+                            {Object.values(ORDER_STATUSES).map(status => (
+                                <option key={status.name} value={status.name}>
+                                    {status.name}
+                                </option>
+                            ))}
+                        </select>
+
+                        {/* Advisor Filter Dropdown */}
+                        <select
+                            value={selectedAdvisorFilter}
+                            onChange={(e) => setSelectedAdvisorFilter(e.target.value)}
+                            className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="All">Tous les conseillers</option>
+                            {advisors.map(advisor => (
+                                <option key={advisor.email} value={advisor.email}>
+                                    {advisor.name}
+                                </option>
+                            ))}
+                        </select>
+
+                        {/* Sort Order Dropdown */}
+                        <select
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value)}
+                            className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="orderDateDesc">Date (la plus récente)</option>
+                            <option value="orderDateAsc">Date (la plus ancienne)</option>
+                            <option value="clientNameAsc">Client (A-Z)</option>
+                            <option value="clientNameDesc">Client (Z-A)</option>
+                            <option value="itemNameAsc">Accessoire (A-Z)</option>
+                            <option value="itemNameDesc">Accessoire (Z-A)</option>
+                        </select>
+                    </div>
+                )}
+
+
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
 
                 {isLoading && (
@@ -1009,17 +1132,17 @@ export default function App() {
                     </div>
                 )}
 
-                {!isLoading && orders.length === 0 && (
+                {!isLoading && filteredAndSortedOrders.length === 0 && (
                     <div className="text-center py-20 bg-gray-800 rounded-2xl">
-                        <h2 className="text-2xl font-semibold text-gray-300">Aucune commande disponible.</h2>
-                        {(currentUser && !isAdmin) && <p className="text-gray-400 mt-2">Connectez-vous en tant qu'administrateur pour ajouter la première commande, ou demandez à votre conseiller de le faire.</p>}
-                        {isAdmin && <p className="text-gray-400 mt-2">Cliquez sur "Nouvelle Commande" pour commencer.</p>}
+                        <h2 className="text-2xl font-semibold text-gray-300">Aucune commande ne correspond aux filtres.</h2>
+                        <p className="text-gray-400 mt-2">Essayez d'ajuster vos critères de recherche ou vos filtres.</p>
+                        {isAdmin && <p className="text-gray-400 mt-2">Cliquez sur "Nouvelle Commande" pour ajouter une commande.</p>}
                     </div>
                 )}
 
-                {!isLoading && orders.length > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-                        {orders.map((order) => (
+                {!isLoading && filteredAndSortedOrders.length > 0 && (
+                    <div className="flex flex-col gap-6 animate-fade-in"> {/* Changed from grid to flex-col */}
+                        {filteredAndSortedOrders.map((order) => (
                             <OrderCard
                                 key={order.id}
                                 order={order}
