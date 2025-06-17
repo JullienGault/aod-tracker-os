@@ -1,20 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
-import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit } from 'lucide-react';
+import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText } from 'lucide-react';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES
 // =================================================================
 
-// Firebase configuration. DO NOT modify this. This is handled by the environment.
-// const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-
-// Configuration Firebase mise à jour selon votre demande
+// Configuration Firebase mise à jour
 const firebaseConfig = {
-    apiKey: "AIzaSyBuWquEXyrx7EEMLcOsRJ81ThnlUhrnIew", // <-- NOUVELLE CLÉ INSÉRÉE
+    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg", // <-- NOUVELLE CLÉ INSÉRÉE
     authDomain: "aod-tracker-os.firebaseapp.com",
     projectId: "aod-tracker-os",
     storageBucket: "aod-tracker-os.appspot.com",
@@ -22,20 +19,19 @@ const firebaseConfig = {
     appId: "1:429289937311:web:1ab993b09899afc2b245aa",
 };
 
-// App ID provided by the environment. DO NOT modify this.
+// App ID provided by the environment.
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 
 const ADMIN_EMAIL = "jullien.gault@orange-store.com"; // Your admin email for full control
-const DEFAULT_ADVISORS = [ // Used for mapping user emails to display names
-    { name: 'Enzo', email: 'enzo@orange-store.com' },
-    { name: 'Guewen', email: 'guewen@orange-store.com' },
-    { name: 'Jullien', email: 'jullien.gault@orange-store.com' },
-    { name: 'Kenza', email: 'kenza@orange-store.com' },
-    { name: 'Manuel', email: 'manuel@orange-store.com' },
-    { name: 'Marie', email: 'marie@orange-store.com' },
-    { name: 'Marvyn', email: 'marvyn@orange-store.com' },
-    { name: 'Tom', email: 'tom@orange-store.com' },
-];
+
+// Define order statuses with display names and next possible statuses
+const ORDER_STATUSES = {
+    ORDERED: { name: 'Commandé', next: ['ReceivedInStore'] },
+    RECEIVED_IN_STORE: { name: 'Reçu en boutique', next: ['ClientNotified'] },
+    CLIENT_NOTIFIED: { name: 'Client prévenu ou averti', next: ['PickedUp'] },
+    PICKED_UP: { name: 'Client a retiré son colis', next: [] },
+    CANCELLED: { name: 'Annulée', next: [] }
+};
 
 // =================================================================
 // COMPOSANTS UI
@@ -91,7 +87,11 @@ const Tooltip = ({ children, text }) => {
 const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     const [itemName, setItemName] = useState(initialData?.itemName || '');
     const [quantity, setQuantity] = useState(initialData?.quantity || '');
-    const [clientName, setClientName] = useState(initialData?.clientName || '');
+    const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
+    const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
+    const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '');
+    const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '');
+    const [receiptNumber, setReceiptNumber] = useState(initialData?.receiptNumber || '');
     const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
     const [formError, setFormError] = useState(null);
 
@@ -100,8 +100,8 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
         e.preventDefault();
         setFormError(null);
 
-        if (!itemName || !quantity || !clientName) {
-            setFormError("Veuillez remplir tous les champs obligatoires (Nom de l'accessoire, Quantité, Nom du client).");
+        if (!itemName || !quantity || !clientFirstName || !clientLastName) {
+            setFormError("Veuillez remplir tous les champs obligatoires (Nom de l'accessoire, Quantité, Prénom et Nom du client).");
             return;
         }
         if (isNaN(parseInt(quantity)) || parseInt(quantity) <= 0) {
@@ -113,7 +113,11 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
             await onSave({
                 itemName: itemName.trim(),
                 quantity: parseInt(quantity, 10),
-                clientName: clientName.trim(),
+                clientFirstName: clientFirstName.trim(),
+                clientLastName: clientLastName.trim(),
+                clientEmail: clientEmail.trim(),
+                clientPhone: clientPhone.trim(),
+                receiptNumber: receiptNumber.trim(),
                 orderNotes: orderNotes.trim(),
             });
             onClose(); // Close form on successful save
@@ -121,7 +125,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
             console.error("Error saving order:", error);
             setFormError("Échec de l'enregistrement de la commande. Veuillez réessayer.");
         }
-    }, [itemName, quantity, clientName, orderNotes, onSave, onClose]);
+    }, [itemName, quantity, clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, orderNotes, onSave, onClose]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
@@ -131,6 +135,25 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
                 </button>
                 <h2 className="text-2xl font-bold text-white mb-6 text-center">{initialData ? 'Modifier la commande' : 'Nouvelle Commande d\'Accessoire'}</h2>
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="clientFirstName" className="block text-sm font-medium text-gray-300 mb-2">Prénom client *</label>
+                            <input id="clientFirstName" type="text" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                        </div>
+                        <div>
+                            <label htmlFor="clientLastName" className="block text-sm font-medium text-gray-300 mb-2">Nom client *</label>
+                            <input id="clientLastName" type="text" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                        </div>
+                    </div>
+                    <div>
+                        <label htmlFor="clientEmail" className="block text-sm font-medium text-gray-300 mb-2">Email client (optionnel)</label>
+                        <input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                    </div>
+                    <div>
+                        <label htmlFor="clientPhone" className="block text-sm font-medium text-gray-300 mb-2">Téléphone client (optionnel)</label>
+                        <input id="clientPhone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                    </div>
+                    <hr className="border-gray-700" />
                     <div>
                         <label htmlFor="itemName" className="block text-sm font-medium text-gray-300 mb-2">Nom de l'accessoire *</label>
                         <input id="itemName" type="text" value={itemName} onChange={(e) => setItemName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
@@ -140,8 +163,8 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
                         <input id="quantity" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
                     </div>
                     <div>
-                        <label htmlFor="clientName" className="block text-sm font-medium text-gray-300 mb-2">Nom du client *</label>
-                        <input id="clientName" type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                        <label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-300 mb-2">Numéro de ticket de caisse (optionnel)</label>
+                        <input id="receiptNumber" type="text" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
                     </div>
                     <div>
                         <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-300 mb-2">Notes (optionnel)</label>
@@ -158,22 +181,58 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 };
 
 // Component to display an individual order card
-const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, currentUserId, onShowHistory }) => {
+const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap }) => {
     // Determine the color of the status badge
     const getStatusColor = (status) => {
         switch (status) {
-            case 'Pending': return 'bg-yellow-500';
-            case 'Received': return 'bg-green-500';
-            case 'Notified': return 'bg-blue-500';
-            case 'Cancelled': return 'bg-red-500';
+            case 'Commandé': return 'bg-yellow-500';
+            case 'Reçu en boutique': return 'bg-green-500';
+            case 'Client prévenu ou averti': return 'bg-blue-500';
+            case 'Client a retiré son colis': return 'bg-purple-500';
+            case 'Annulée': return 'bg-red-500';
             default: return 'bg-gray-500';
         }
     };
 
-    // Helper to get display name from email
+    // Helper to get display name from email using the provided map
     const getDisplayName = (email) => {
-        const advisor = DEFAULT_ADVISORS.find(a => a.email.toLowerCase() === email.toLowerCase());
-        return advisor ? advisor.name : email;
+        return advisorsMap[email.toLowerCase()]?.name || email;
+    };
+
+    // Get the next status button config based on current status and admin role
+    const getNextStatusButton = (currentStatus) => {
+        if (!isAdmin || currentStatus === ORDER_STATUSES.PICKED_UP.name || currentStatus === ORDER_STATUSES.CANCELLED.name) {
+            return null; // No action if not admin or already completed/cancelled
+        }
+
+        const currentStatusConfig = Object.values(ORDER_STATUSES).find(s => s.name === currentStatus);
+        if (currentStatusConfig && currentStatusConfig.next.length > 0) {
+            const nextStatus = currentStatusConfig.next[0]; // Assuming a linear progression for now
+            const buttonText = ORDER_STATUSES[nextStatus.toUpperCase()]?.name;
+            let buttonColor = 'bg-gray-600';
+            let buttonIcon = CheckCircle;
+
+            if (nextStatus === 'ReceivedInStore') {
+                buttonColor = 'bg-green-600';
+                buttonIcon = Truck;
+            } else if (nextStatus === 'ClientNotified') {
+                buttonColor = 'bg-blue-600';
+                buttonIcon = Bell;
+            } else if (nextStatus === 'PickedUp') {
+                buttonColor = 'bg-purple-600';
+                buttonIcon = UserCheck;
+            }
+
+            return (
+                <button
+                    onClick={() => onUpdateStatus(order.id, buttonText)}
+                    className={`flex-1 ${buttonColor} hover:${buttonColor.replace('600', '700')} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
+                >
+                    <buttonIcon size={18} /> Marquer "{buttonText}"
+                </button>
+            );
+        }
+        return null;
     };
 
     return (
@@ -181,22 +240,39 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, currentUs
             <div className="flex justify-between items-start mb-4">
                 <h3 className="text-xl font-bold text-white flex items-center gap-3">
                     <Package size={24} className="text-blue-400" />
-                    {order.itemName}
+                    <span className="text-lg">{order.itemName}</span>
                 </h3>
                 <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>
-                    {order.currentStatus === 'Pending' && 'En attente'}
-                    {order.currentStatus === 'Received' && 'Reçu'}
-                    {order.currentStatus === 'Notified' && 'Client Prévenu'}
-                    {order.currentStatus === 'Cancelled' && 'Annulée'}
+                    {order.currentStatus}
                 </span>
             </div>
 
             <p className="text-gray-300 mb-2">
+                <span className="font-semibold text-lg text-white">
+                    {order.clientFirstName} {order.clientLastName}
+                </span>
+            </p>
+            {order.clientEmail && (
+                <p className="text-gray-300 text-sm flex items-center gap-2 mb-1">
+                    <Mail size={16} /> {order.clientEmail}
+                </p>
+            )}
+            {order.clientPhone && (
+                <p className="text-gray-300 text-sm flex items-center gap-2 mb-2">
+                    <Phone size={16} /> {order.clientPhone}
+                </p>
+            )}
+
+            <hr className="border-gray-700 my-2" />
+
+            <p className="text-gray-300 mb-1">
                 <span className="font-semibold">Quantité:</span> {order.quantity}
             </p>
-            <p className="text-gray-300 mb-2">
-                <span className="font-semibold">Pour le client:</span> {order.clientName}
-            </p>
+            {order.receiptNumber && (
+                <p className="text-gray-300 text-sm flex items-center gap-2 mb-2">
+                    <ReceiptText size={16} /> <span className="font-semibold">Ticket:</span> {order.receiptNumber}
+                </p>
+            )}
             {order.orderNotes && (
                 <p className="text-gray-400 text-sm italic mb-3 break-words">
                     <span className="font-semibold">Notes:</span> {order.orderNotes}
@@ -208,61 +284,50 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, currentUs
                     <User size={16} /> Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email || 'N/A')}</span>
                     le {new Date(order.orderDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
-                {order.currentStatus === 'Received' && order.receivedBy && order.receptionDate && (
+                {order.receivedBy && order.receptionDate && (
                     <p className="flex items-center gap-2 mb-1">
                         <CheckCircle size={16} className="text-green-400" /> Reçu par <span className="font-medium text-white">{getDisplayName(order.receivedBy?.email || 'N/A')}</span>
                         le {new Date(order.receptionDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 )}
-                {order.currentStatus === 'Notified' && order.notifiedBy && order.notificationDate && (
-                    <p className="flex items-center gap-2">
+                {order.notifiedBy && order.notificationDate && (
+                    <p className="flex items-center gap-2 mb-1">
                         <Bell size={16} className="text-blue-400" /> Client prévenu par <span className="font-medium text-white">{getDisplayName(order.notifiedBy?.email || 'N/A')}</span>
                         le {new Date(order.notificationDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                )}
+                {order.pickedUpBy && order.pickedUpDate && (
+                    <p className="flex items-center gap-2">
+                        <UserCheck size={16} className="text-purple-400" /> Retiré par <span className="font-medium text-white">{getDisplayName(order.pickedUpBy?.email || 'N/A')}</span>
+                        le {new Date(order.pickedUpDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 )}
             </div>
 
             <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
-                {order.currentStatus === 'Pending' && isAdmin && (
-                    <button
-                        onClick={() => onUpdateStatus(order.id, 'Received')}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
-                    >
-                        <CheckCircle size={18} /> Marquer Reçu
-                    </button>
-                )}
-                {order.currentStatus === 'Received' && isAdmin && (
-                    <button
-                        onClick={() => onUpdateStatus(order.id, 'Notified')}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
-                    >
-                        <Bell size={18} /> Prévenir Client
-                    </button>
-                )}
-                {isAdmin && order.currentStatus !== 'Cancelled' && ( // Admin can edit/delete if not cancelled
+                {getNextStatusButton(order.currentStatus)}
+                {isAdmin && order.currentStatus !== ORDER_STATUSES.CANCELLED.name && (
                     <>
                         <button
                             onClick={() => onEdit(order)}
                             className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
                         >
-                            <Edit size={18} />
+                            <Edit size={18} /> Modifier
                         </button>
                         <button
                             onClick={() => onDelete(order.id)}
                             className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
                         >
-                            <Trash2 size={18} />
+                            <Trash2 size={18} /> Supprimer
                         </button>
                     </>
                 )}
-                {order.currentStatus !== 'Cancelled' && ( // All users can view history if not cancelled
-                    <button
-                        onClick={() => onShowHistory(order)}
-                        className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
-                    >
-                        <History size={18} /> Historique
-                    </button>
-                )}
+                <button
+                    onClick={() => onShowHistory(order)}
+                    className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                    <History size={18} /> Historique
+                </button>
             </div>
         </div>
     );
@@ -270,11 +335,10 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, currentUs
 
 
 // Modal for displaying order history
-const OrderHistoryModal = ({ order, onClose }) => {
+const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
     // Helper to get display name from email
     const getDisplayName = (email) => {
-        const advisor = DEFAULT_ADVISORS.find(a => a.email.toLowerCase() === email.toLowerCase());
-        return advisor ? advisor.name : email;
+        return advisorsMap[email.toLowerCase()]?.name || email;
     };
 
     return (
@@ -348,12 +412,130 @@ const LoginForm = ({ onLogin, error, onClose }) => {
     );
 };
 
+// Advisor Management Component
+const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => {
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [editAdvisorId, setEditAdvisorId] = useState(null);
+    const [formError, setFormError] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleAddUpdateAdvisor = async (e) => {
+        e.preventDefault();
+        setFormError(null);
+        if (!name.trim() || !email.trim()) {
+            setFormError("Le nom et l'email du conseiller sont obligatoires.");
+            return;
+        }
+        if (!email.includes('@')) {
+            setFormError("L'email n'est pas valide.");
+            return;
+        }
+        setIsSaving(true);
+        try {
+            await onSaveAdvisor({ id: editAdvisorId, name: name.trim(), email: email.trim().toLowerCase() });
+            setName('');
+            setEmail('');
+            setEditAdvisorId(null);
+        } catch (error) {
+            setFormError(`Erreur lors de l'enregistrement: ${error.message}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleEditClick = (advisor) => {
+        setName(advisor.name);
+        setEmail(advisor.email);
+        setEditAdvisorId(advisor.id);
+    };
+
+    const handleCancelEdit = () => {
+        setName('');
+        setEmail('');
+        setEditAdvisorId(null);
+        setFormError(null);
+    };
+
+    if (!isAdmin) {
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
+                <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up">
+                    <p className="text-red-400 text-center">Accès refusé. Seul l'administrateur peut gérer les conseillers.</p>
+                    <button onClick={onClose} className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg">Fermer</button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+                <button onClick={onClose} aria-label="Fermer la gestion des conseillers" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+                    <X size={24} />
+                </button>
+                <h2 className="text-2xl font-bold text-white mb-6 text-center">Gérer les Conseillers</h2>
+
+                <form onSubmit={handleAddUpdateAdvisor} className="space-y-4 mb-8 p-4 bg-gray-700 rounded-lg">
+                    <h3 className="text-xl font-semibold text-white mb-4">{editAdvisorId ? 'Modifier un conseiller' : 'Ajouter un nouveau conseiller'}</h3>
+                    <div>
+                        <label htmlFor="advisorName" className="block text-sm font-medium text-gray-300 mb-1">Nom du conseiller *</label>
+                        <input id="advisorName" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" />
+                    </div>
+                    <div>
+                        <label htmlFor="advisorEmail" className="block text-sm font-medium text-gray-300 mb-1">Email du conseiller *</label>
+                        <input id="advisorEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" />
+                    </div>
+                    {formError && <p className="text-red-400 text-sm">{formError}</p>}
+                    <div className="flex gap-4">
+                        <button type="submit" disabled={isSaving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isSaving ? 'Enregistrement...' : (editAdvisorId ? 'Mettre à jour' : 'Ajouter')}
+                        </button>
+                        {editAdvisorId && (
+                            <button type="button" onClick={handleCancelEdit} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 rounded-lg transition-colors">
+                                Annuler
+                            </button>
+                        )}
+                    </div>
+                </form>
+
+                <div>
+                    <h3 className="text-xl font-semibold text-white mb-4">Liste des Conseillers</h3>
+                    {advisors.length === 0 ? (
+                        <p className="text-gray-400 text-center">Aucun conseiller enregistré.</p>
+                    ) : (
+                        <ul className="space-y-3">
+                            {advisors.map((advisor) => (
+                                <li key={advisor.id} className="flex items-center justify-between bg-gray-700/50 p-3 rounded-lg">
+                                    <div>
+                                        <p className="font-medium text-white">{advisor.name}</p>
+                                        <p className="text-sm text-gray-400">{advisor.email}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleEditClick(advisor)} className="text-blue-400 hover:text-blue-300 transition-colors">
+                                            <Edit size={20} />
+                                        </button>
+                                        <button onClick={() => onDeleteAdvisor(advisor.id)} className="text-red-400 hover:text-red-300 transition-colors">
+                                            <Trash2 size={20} />
+                                        </button>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // =================================================================
 // COMPOSANT PRINCIPAL : App
 // =================================================================
 
 export default function App() {
     const [orders, setOrders] = useState([]);
+    const [advisors, setAdvisors] = useState([]); // State to store advisors
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [dbError, setDbError] = useState(null);
@@ -376,6 +558,15 @@ export default function App() {
 
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
+    const [showAdvisorManagement, setShowAdvisorManagement] = useState(false); // New state for advisor management UI
+
+    // Memoized map of advisors for quick lookup
+    const advisorsMap = useMemo(() => {
+        return advisors.reduce((acc, advisor) => {
+            acc[advisor.email.toLowerCase()] = advisor;
+            return acc;
+        }, {});
+    }, [advisors]);
 
     // Initialize Firebase and set up auth listener
     useEffect(() => {
@@ -390,19 +581,15 @@ export default function App() {
                 if (user) {
                     setCurrentUser(user);
                     setIsAdmin(user.email === ADMIN_EMAIL);
+                    setShowLogin(false); // Hide login if user logs in
+                    setAuthReady(true); // Auth is ready as a user is logged in
                 } else {
                     setCurrentUser(null);
                     setIsAdmin(false);
-                    // If no user is logged in (including after failed custom token login),
-                    // attempt anonymous sign-in to satisfy Firestore rules that require authentication.
-                    try {
-                        await signInAnonymously(authInstance);
-                    } catch (err) {
-                        console.error("Anonymous sign-in failed:", err);
-                        setDbError("Impossible de se connecter anonymement pour accéder aux données.");
-                    }
+                    setAuthReady(true); // Auth is ready, but no user is logged in
+                    setShowLogin(true); // Show login form if not authenticated
+                    setIsLoading(false); // Stop loading as we're waiting for login
                 }
-                setAuthReady(true);
             });
             return () => unsubscribe();
         } catch (e) {
@@ -412,9 +599,48 @@ export default function App() {
         }
     }, []);
 
+    // Fetch advisors from Firestore
+    useEffect(() => {
+        if (!authReady || !db || !currentUser) return; // Only fetch if authenticated
+
+        const advisorsColRef = collection(db, `artifacts/${APP_ID}/public/data/advisors`);
+        const unsubscribe = onSnapshot(advisorsColRef,
+            async (snapshot) => {
+                const fetchedAdvisors = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                setAdvisors(fetchedAdvisors);
+
+                // Initialize default advisors if collection is empty (only for admin first time)
+                if (fetchedAdvisors.length === 0 && isAdmin) {
+                    console.log("Initializing default advisors for admin...");
+                    if (currentUser && currentUser.email === ADMIN_EMAIL) {
+                        for (const advisor of [{ name: 'Enzo', email: 'enzo@orange-store.com' },
+                                                { name: 'Guewen', email: 'guewen@orange-store.com' },
+                                                { name: 'Jullien', email: 'jullien.gault@orange-store.com' },
+                                                { name: 'Kenza', email: 'kenza@orange-store.com' },
+                                                { name: 'Manuel', email: 'manuel@orange-store.com' },
+                                                { name: 'Marie', email: 'marie@orange-store.com' },
+                                                { name: 'Marvyn', email: 'marvyn@orange-store.com' },
+                                                { name: 'Tom', email: 'tom@orange-store.com' }]) {
+                            try {
+                                await setDoc(doc(advisorsColRef, advisor.email.toLowerCase()), advisor);
+                            } catch (e) {
+                                console.error("Error setting default advisor:", e);
+                            }
+                        }
+                    }
+                }
+            },
+            (err) => {
+                console.error("Error fetching advisors:", err);
+                setDbError("Impossible de charger les conseillers. Vérifiez les règles de sécurité Firestore.");
+            }
+        );
+        return () => unsubscribe();
+    }, [authReady, db, isAdmin, currentUser]); // Rerun if isAdmin or currentUser changes
+
     // Fetch orders from Firestore
     useEffect(() => {
-        if (!authReady || !db) return;
+        if (!authReady || !db || !currentUser) return; // Only fetch if authenticated
 
         // Public data collection for orders
         const ordersCollectionRef = collection(db, `artifacts/${APP_ID}/public/data/orders`);
@@ -433,7 +659,7 @@ export default function App() {
             }
         );
         return () => unsubscribe();
-    }, [authReady, db]);
+    }, [authReady, db, currentUser]); // Rerun if currentUser changes
 
     // Handle user login
     const handleLogin = useCallback(async (email, password) => {
@@ -457,9 +683,10 @@ export default function App() {
     // Helper to get current user info for history/tracking
     const getCurrentUserInfo = useCallback(() => {
         if (!currentUser) return null;
-        const displayName = DEFAULT_ADVISORS.find(a => a.email.toLowerCase() === currentUser.email?.toLowerCase())?.name || currentUser.email || 'Inconnu';
+        // Lookup display name from advisorsMap
+        const displayName = advisorsMap[currentUser.email?.toLowerCase()]?.name || currentUser.email || 'Inconnu';
         return { uid: currentUser.uid, email: currentUser.email, name: displayName };
-    }, [currentUser]);
+    }, [currentUser, advisorsMap]);
 
     // Handle placing a new order or updating an existing one
     const handleSaveOrder = useCallback(async (orderData) => {
@@ -477,7 +704,7 @@ export default function App() {
                     timestamp: now,
                     action: "Commande modifiée",
                     by: userInfo,
-                    notes: `Mise à jour: ${JSON.stringify({ itemName: orderData.itemName, quantity: orderData.quantity, clientName: orderData.clientName, orderNotes: orderData.orderNotes })}`
+                    notes: `Mise à jour: ${JSON.stringify({ itemName: orderData.itemName, quantity: orderData.quantity, clientFirstName: orderData.clientFirstName, clientLastName: orderData.clientLastName, clientEmail: orderData.clientEmail, clientPhone: orderData.clientPhone, receiptNumber: orderData.receiptNumber, orderNotes: orderData.orderNotes })}`
                 }];
                 await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), {
                     ...orderData,
@@ -489,12 +716,14 @@ export default function App() {
                     ...orderData,
                     orderedBy: userInfo,
                     orderDate: now,
-                    currentStatus: 'Pending',
+                    currentStatus: ORDER_STATUSES.ORDERED.name, // Set initial status
                     receivedBy: null,
                     receptionDate: null,
                     notifiedBy: null,
                     notificationDate: null,
-                    history: [{ timestamp: now, action: "Commande passée", by: userInfo }]
+                    pickedUpBy: null,
+                    pickedUpDate: null,
+                    history: [{ timestamp: now, action: `Commande ${ORDER_STATUSES.ORDERED.name.toLowerCase()}`, by: userInfo }]
                 };
                 await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder);
             }
@@ -508,7 +737,7 @@ export default function App() {
     }, [db, currentUser, editingOrder, getCurrentUserInfo]);
 
     // Handle updating order status (e.g., Received, Notified)
-    const handleUpdateOrderStatus = useCallback(async (orderId, newStatus) => {
+    const handleUpdateOrderStatus = useCallback(async (orderId, newStatusName) => {
         if (!db || !currentUser || !isAdmin) {
             setDbError("Accès non autorisé pour cette action.");
             return;
@@ -519,19 +748,29 @@ export default function App() {
         const now = new Date().toISOString();
 
         try {
-            let updateData = { currentStatus: newStatus };
+            let updateData = { currentStatus: newStatusName };
             let actionText = '';
-            if (newStatus === 'Received') {
-                updateData.receivedBy = userInfo;
-                updateData.receptionDate = now;
-                actionText = "Commande reçue et validée";
-            } else if (newStatus === 'Notified') {
-                updateData.notifiedBy = userInfo;
-                updateData.notificationDate = now;
-                actionText = "Client prévenu";
+
+            switch (newStatusName) {
+                case ORDER_STATUSES.RECEIVED_IN_STORE.name:
+                    updateData.receivedBy = userInfo;
+                    updateData.receptionDate = now;
+                    actionText = "Commande reçue et validée";
+                    break;
+                case ORDER_STATUSES.CLIENT_NOTIFIED.name:
+                    updateData.notifiedBy = userInfo;
+                    updateData.notificationDate = now;
+                    actionText = "Client prévenu ou averti";
+                    break;
+                case ORDER_STATUSES.PICKED_UP.name:
+                    updateData.pickedUpBy = userInfo;
+                    updateData.pickedUpDate = now;
+                    actionText = "Client a retiré son colis";
+                    break;
+                default:
+                    actionText = `Statut mis à jour: ${newStatusName}`;
             }
 
-            // Fetch current order to append to history
             const currentOrder = orders.find(order => order.id === orderId);
             const updatedHistory = [...(currentOrder?.history || []), {
                 timestamp: now,
@@ -542,7 +781,7 @@ export default function App() {
 
             await updateDoc(orderRef, updateData);
         } catch (e) {
-            console.error(`Error updating order status to ${newStatus}:`, e);
+            console.error(`Error updating order status to ${newStatusName}:`, e);
             setDbError("Échec de la mise à jour du statut. Vérifiez la console.");
         } finally {
             setIsSaving(false);
@@ -566,12 +805,12 @@ export default function App() {
             const currentOrder = orders.find(order => order.id === orderToCancelId);
             const updatedHistory = [...(currentOrder?.history || []), {
                 timestamp: now,
-                action: "Commande annulée",
+                action: `Commande ${ORDER_STATUSES.CANCELLED.name.toLowerCase()}`,
                 by: userInfo
             }];
 
             await updateDoc(orderRef, {
-                currentStatus: 'Cancelled',
+                currentStatus: ORDER_STATUSES.CANCELLED.name,
                 history: updatedHistory
             });
             setOrderToCancelId(null);
@@ -615,14 +854,66 @@ export default function App() {
         setShowOrderForm(true);
     }, []);
 
+    // Advisor Management Callbacks
+    const handleSaveAdvisor = useCallback(async (advisorData) => {
+        if (!db || !isAdmin) {
+            throw new Error("Seul l'administrateur peut ajouter/modifier les conseillers.");
+        }
+        setIsSaving(true);
+        try {
+            // Use the email as the document ID for advisors for easy lookup
+            const docRef = doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorData.email.toLowerCase());
+            await setDoc(docRef, {
+                name: advisorData.name,
+                email: advisorData.email.toLowerCase(),
+            }, { merge: true }); // Use merge to avoid overwriting if doc exists
+        } catch (e) {
+            console.error("Error saving advisor:", e);
+            throw new Error("Échec de l'enregistrement du conseiller.");
+        } finally {
+            setIsSaving(false);
+        }
+    }, [db, isAdmin]);
+
+    const handleDeleteAdvisor = useCallback(async (advisorId) => {
+        if (!db || !isAdmin) {
+            setDbError("Seul l'administrateur peut supprimer les conseillers.");
+            return;
+        }
+        setIsSaving(true);
+        try {
+            await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorId));
+        } catch (e) {
+            console.error("Error deleting advisor:", e);
+            setDbError("Échec de la suppression du conseiller.");
+        } finally {
+            setIsSaving(false);
+        }
+    }, [db, isAdmin]);
+
+
     if (!authReady) {
-        return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" /></div>;
+        // Show loading spinner while auth state is being determined
+        return (
+            <div className="bg-gray-900 min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" />
+            </div>
+        );
     }
 
+    if (showLogin || !currentUser) {
+        // Show login form if authReady is true but no user is logged in
+        return (
+            <div className="bg-gray-900 min-h-screen flex items-center justify-center">
+                <LoginForm onLogin={handleLogin} error={loginError} onClose={() => { /* No-op, user must log in */ }} />
+            </div>
+        );
+    }
+
+    // Main application content, rendered only if currentUser is available
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
             <AnimationStyles />
-            {showLogin && <LoginForm onLogin={handleLogin} error={loginError} onClose={() => setShowLogin(false)} />}
             {showConfirmCancel && (
                 <ConfirmationModal
                     message="Voulez-vous vraiment annuler cette commande ?"
@@ -641,7 +932,19 @@ export default function App() {
                 />
             )}
             {showOrderHistory && selectedOrderForHistory && (
-                <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} />
+                <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} advisorsMap={advisorsMap} />
+            )}
+            {showAdvisorManagement && (
+                <AdvisorManagementForm
+                    db={db}
+                    appId={APP_ID}
+                    advisors={advisors}
+                    onSaveAdvisor={handleSaveAdvisor}
+                    onDeleteAdvisor={handleDeleteAdvisor}
+                    onClose={() => setShowAdvisorManagement(false)}
+                    isAdmin={isAdmin}
+                    adminEmail={ADMIN_EMAIL}
+                />
             )}
 
             {showOrderForm && (
@@ -679,6 +982,12 @@ export default function App() {
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
                                 >
                                     <PlusCircle size={20} /> Nouvelle Commande
+                                </button>
+                                <button
+                                    onClick={() => setShowAdvisorManagement(true)}
+                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                                >
+                                    <UserPlus size={20} /> Gérer Conseillers
                                 </button>
                                 <button onClick={handleLogout} title="Se déconnecter" aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors"><LogOut size={22} /></button>
                             </div>
@@ -718,8 +1027,8 @@ export default function App() {
                                 onEdit={handleEditOrder}
                                 onDelete={(id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }}
                                 isAdmin={isAdmin}
-                                currentUserId={currentUser?.uid}
                                 onShowHistory={handleShowOrderHistory}
+                                advisorsMap={advisorsMap}
                             />
                         ))}
                     </div>
