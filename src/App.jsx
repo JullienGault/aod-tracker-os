@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import ReactDOM from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
-import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search } from 'lucide-react';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, Slash } from 'lucide-react'; // Added Check and Slash for toast icons
 
 // =================================================================
 // CONFIGURATION & CONSTANTES
@@ -11,7 +11,7 @@ import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar,
 
 // Configuration Firebase mise à jour
 const firebaseConfig = {
-    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg", // <-- NOUVELLE CLÉ INSÉRÉE
+    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
     authDomain: "aod-tracker-os.firebaseapp.com",
     projectId: "aod-tracker-os",
     storageBucket: "aod-tracker-os.appspot.com",
@@ -26,9 +26,9 @@ const ADMIN_EMAIL = "jullien.gault@orange-store.com"; // Your admin email for fu
 
 // Define order statuses with display names and next possible statuses
 const ORDER_STATUSES = {
-    ORDERED: { name: 'Commandé', next: ['ReceivedInStore'] },
-    RECEIVED_IN_STORE: { name: 'Reçu en boutique', next: ['ClientNotified'] },
-    CLIENT_NOTIFIED: { name: 'Client prévenu ou averti', next: ['PickedUp'] },
+    ORDERED: { name: 'Commandé', next: ['RECEIVED_IN_STORE'] }, // Changed next to use keys for robustness
+    RECEIVED_IN_STORE: { name: 'Reçu en boutique', next: ['CLIENT_NOTIFIED'] },
+    CLIENT_NOTIFIED: { name: 'Client prévenu ou averti', next: ['PICKED_UP'] },
     PICKED_UP: { name: 'Client a retiré son colis', next: [] },
     CANCELLED: { name: 'Annulée', next: [] }
 };
@@ -83,41 +83,72 @@ const Tooltip = ({ children, text }) => {
     );
 };
 
+// Toast Notification Component
+const Toast = ({ message, type, onClose }) => {
+    const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+    const Icon = type === 'success' ? Check : AlertTriangle;
+
+    return (
+        <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}>
+            <Icon size={24} />
+            <span>{message}</span>
+            <button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors">
+                <X size={20} />
+            </button>
+        </div>
+    );
+};
+
 // Form for creating and editing orders
 const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
-    const [itemName, setItemName] = useState(initialData?.itemName || '');
-    const [quantity, setQuantity] = useState(initialData?.quantity || '');
     const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
     const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
     const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '');
     const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '');
     const [receiptNumber, setReceiptNumber] = useState(initialData?.receiptNumber || '');
+    const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items : [{ itemName: '', quantity: '' }]); // Initialize with existing items or one empty item
     const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
     const [formError, setFormError] = useState(null);
+
+    const handleItemChange = useCallback((index, field, value) => {
+        const newItems = [...items];
+        newItems[index][field] = value;
+        setItems(newItems);
+    }, [items]);
+
+    const handleAddItem = useCallback(() => {
+        setItems([...items, { itemName: '', quantity: '' }]);
+    }, [items]);
+
+    const handleRemoveItem = useCallback((index) => {
+        const newItems = items.filter((_, i) => i !== index);
+        setItems(newItems);
+    }, [items]);
 
     // Handle form submission
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
         setFormError(null);
 
-        if (!itemName || !quantity || !clientFirstName || !clientLastName) {
-            setFormError("Veuillez remplir tous les champs obligatoires (Nom de l'accessoire, Quantité, Prénom et Nom du client).");
+        if (!clientFirstName || !clientLastName) {
+            setFormError("Veuillez remplir le prénom et le nom du client.");
             return;
         }
-        if (isNaN(parseInt(quantity)) || parseInt(quantity) <= 0) {
-            setFormError("La quantité doit être un nombre positif.");
+
+        const validItems = items.filter(item => item.itemName.trim() && parseInt(item.quantity, 10) > 0);
+        if (validItems.length === 0) {
+            setFormError("Veuillez ajouter au moins un article valide (Nom de l'accessoire et Quantité > 0).");
             return;
         }
 
         try {
             await onSave({
-                itemName: itemName.trim(),
-                quantity: parseInt(quantity, 10),
                 clientFirstName: clientFirstName.trim(),
                 clientLastName: clientLastName.trim(),
                 clientEmail: clientEmail.trim(),
                 clientPhone: clientPhone.trim(),
                 receiptNumber: receiptNumber.trim(),
+                items: validItems.map(item => ({ itemName: item.itemName.trim(), quantity: parseInt(item.quantity, 10) })),
                 orderNotes: orderNotes.trim(),
             });
             onClose(); // Close form on successful save
@@ -125,11 +156,11 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
             console.error("Error saving order:", error);
             setFormError("Échec de l'enregistrement de la commande. Veuillez réessayer.");
         }
-    }, [itemName, quantity, clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, orderNotes, onSave, onClose]);
+    }, [clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, items, orderNotes, onSave, onClose]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Adjusted max-w and added overflow-y-auto */}
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -154,14 +185,48 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
                         <input id="clientPhone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
                     </div>
                     <hr className="border-gray-700" />
-                    <div>
-                        <label htmlFor="itemName" className="block text-sm font-medium text-gray-300 mb-2">Nom de l'accessoire *</label>
-                        <input id="itemName" type="text" value={itemName} onChange={(e) => setItemName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+
+                    <h3 className="text-xl font-semibold text-white mb-4">Articles Commandés *</h3>
+                    <div className="space-y-3">
+                        {items.map((item, index) => (
+                            <div key={index} className="flex items-end gap-2 bg-gray-700/50 p-3 rounded-lg">
+                                <div className="flex-grow">
+                                    <label htmlFor={`itemName-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Article</label>
+                                    <input
+                                        id={`itemName-${index}`}
+                                        type="text"
+                                        placeholder="Nom de l'accessoire"
+                                        value={item.itemName}
+                                        onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
+                                        required
+                                        className="w-full bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Qté</label>
+                                    <input
+                                        id={`quantity-${index}`}
+                                        type="number"
+                                        placeholder="Qté"
+                                        value={item.quantity}
+                                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                                        required
+                                        className="w-20 bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm"
+                                    />
+                                </div>
+                                {items.length > 1 && (
+                                    <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-red-400 hover:text-red-300 transition-colors">
+                                        <MinusCircle size={20} />
+                                    </button>
+                                )}
+                            </div>
+                        ))}
                     </div>
-                    <div>
-                        <label htmlFor="quantity" className="block text-sm font-medium text-gray-300 mb-2">Quantité *</label>
-                        <input id="quantity" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
-                    </div>
+                    <button type="button" onClick={handleAddItem} className="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        <PlusCircle size={20} /> Ajouter un article
+                    </button>
+                    
+                    <hr className="border-gray-700" />
                     <div>
                         <label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-300 mb-2">Numéro de ticket de caisse (optionnel)</label>
                         <input id="receiptNumber" type="text" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
@@ -185,11 +250,11 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     // Determine the color of the status badge
     const getStatusColor = (status) => {
         switch (status) {
-            case 'Commandé': return 'bg-yellow-500';
-            case 'Reçu en boutique': return 'bg-green-500';
-            case 'Client prévenu ou averti': return 'bg-blue-500';
-            case 'Client a retiré son colis': return 'bg-purple-500';
-            case 'Annulée': return 'bg-red-500';
+            case ORDER_STATUSES.ORDERED.name: return 'bg-yellow-500';
+            case ORDER_STATUSES.RECEIVED_IN_STORE.name: return 'bg-green-500';
+            case ORDER_STATUSES.CLIENT_NOTIFIED.name: return 'bg-blue-500';
+            case ORDER_STATUSES.PICKED_UP.name: return 'bg-purple-500';
+            case ORDER_STATUSES.CANCELLED.name: return 'bg-red-500';
             default: return 'bg-gray-500';
         }
     };
@@ -205,30 +270,39 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
             return null; // No action if not admin or already completed/cancelled
         }
 
-        const currentStatusConfig = Object.values(ORDER_STATUSES).find(s => s.name === currentStatus);
-        if (currentStatusConfig && currentStatusConfig.next.length > 0) {
-            const nextStatus = currentStatusConfig.next[0]; // Assuming a linear progression for now
-            const buttonText = ORDER_STATUSES[nextStatus.toUpperCase()]?.name;
-            let buttonColor = 'bg-gray-600';
-            let buttonIcon = CheckCircle;
+        const currentStatusKey = Object.keys(ORDER_STATUSES).find(key => ORDER_STATUSES[key].name === currentStatus);
+        const currentStatusConfig = ORDER_STATUSES[currentStatusKey];
 
-            if (nextStatus === 'ReceivedInStore') {
-                buttonColor = 'bg-green-600';
-                buttonIcon = Truck;
-            } else if (nextStatus === 'ClientNotified') {
-                buttonColor = 'bg-blue-600';
-                buttonIcon = Bell;
-            } else if (nextStatus === 'PickedUp') {
-                buttonColor = 'bg-purple-600';
-                buttonIcon = UserCheck;
+        if (currentStatusConfig && currentStatusConfig.next.length > 0) {
+            const nextStatusKey = currentStatusConfig.next[0];
+            const nextStatusName = ORDER_STATUSES[nextStatusKey].name; // Get the display name for the next status
+            let buttonColor = 'bg-gray-600';
+            let ButtonIcon = CheckCircle; 
+
+            switch (nextStatusKey) { // Use the key for the switch for clarity
+                case 'RECEIVED_IN_STORE':
+                    buttonColor = 'bg-green-600';
+                    ButtonIcon = Truck;
+                    break;
+                case 'CLIENT_NOTIFIED':
+                    buttonColor = 'bg-blue-600';
+                    ButtonIcon = Bell;
+                    break;
+                case 'PICKED_UP':
+                    buttonColor = 'bg-purple-600';
+                    ButtonIcon = UserCheck;
+                    break;
+                default:
+                    // Default icon and color
+                    break;
             }
 
             return (
                 <button
-                    onClick={() => onUpdateStatus(order.id, buttonText)}
+                    onClick={() => onUpdateStatus(order.id, nextStatusName)} // Pass the display name
                     className={`flex-1 ${buttonColor} hover:${buttonColor.replace('600', '700')} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
                 >
-                    <buttonIcon size={18} /> Marquer "{buttonText}"
+                    <ButtonIcon size={18} /> Marquer "{nextStatusName}"
                 </button>
             );
         }
@@ -238,20 +312,20 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     return (
         <div className="bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] hover:shadow-blue-500/10 hover:ring-2 hover:ring-blue-500/50 animate-fade-in-up">
             <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                    <Package size={24} className="text-blue-400" />
-                    <span className="text-lg">{order.itemName}</span>
-                </h3>
+                {/* Client Name and Order Date */}
+                <div>
+                    <h3 className="text-xl font-bold text-white mb-1"> {/* Increased font size and added margin-bottom */}
+                        <span className="text-blue-200">{order.clientFirstName} {order.clientLastName}</span> {/* Highlighted client name */}
+                    </h3>
+                    <p className="text-gray-400 text-sm mb-2"> {/* Moved date here and adjusted styling */}
+                        Commandé le {new Date(order.orderDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                </div>
                 <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>
                     {order.currentStatus}
                 </span>
             </div>
 
-            <p className="text-gray-300 mb-2">
-                <span className="font-semibold text-lg text-white">
-                    {order.clientFirstName} {order.clientLastName}
-                </span>
-            </p>
             {order.clientEmail && (
                 <p className="text-gray-300 text-sm flex items-center gap-2 mb-1">
                     <Mail size={16} /> {order.clientEmail}
@@ -264,10 +338,16 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
             )}
 
             <hr className="border-gray-700 my-2" />
+            
+            <h4 className="text-md font-semibold text-gray-300 mb-2">Articles :</h4>
+            <ul className="list-disc list-inside text-gray-300 mb-2 pl-4">
+                {order.items && order.items.map((item, idx) => (
+                    <li key={idx} className="text-sm">
+                        <span className="font-semibold">{item.itemName}</span> (Qté: {item.quantity})
+                    </li>
+                ))}
+            </ul>
 
-            <p className="text-gray-300 mb-1">
-                <span className="font-semibold">Quantité:</span> {order.quantity}
-            </p>
             {order.receiptNumber && (
                 <p className="text-gray-300 text-sm flex items-center gap-2 mb-2">
                     <ReceiptText size={16} /> <span className="font-semibold">Ticket:</span> {order.receiptNumber}
@@ -282,7 +362,6 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
             <div className="text-sm text-gray-400 mt-auto pt-3 border-t border-gray-700">
                 <p className="flex items-center gap-2 mb-1">
                     <User size={16} /> Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email || 'N/A')}</span>
-                    le {new Date(order.orderDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
                 {order.receivedBy && order.receptionDate && (
                     <p className="flex items-center gap-2 mb-1">
@@ -343,12 +422,12 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Added overflow-y-auto and max-h */}
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
-                <h2 className="text-2xl font-bold text-white mb-6 text-center">Historique de la commande: {order.itemName}</h2>
-                <div className="space-y-4 pr-2 custom-scrollbar"> {/* Removed max-h-96 here as it's now on the parent div */}
+                <h2 className="text-2xl font-bold text-white mb-6 text-center">Historique de la commande: {order.items?.[0]?.itemName || 'Article(s)'}</h2>
+                <div className="space-y-4 pr-2 custom-scrollbar">
                     {order.history && order.history.length > 0 ? (
                         order.history.map((event, index) => (
                             <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4">
@@ -470,7 +549,7 @@ const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdv
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Adjusted max-w and added overflow-y-auto */}
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer la gestion des conseillers" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -565,6 +644,18 @@ export default function App() {
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All'); // 'All' or specific status name
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All'); // 'All' or advisor email
     const [sortOrder, setSortOrder] = useState('orderDateDesc'); // Default sort: Date (newest first)
+    
+    // Toast notification state
+    const [toast, setToast] = useState(null);
+
+    // Function to display a toast notification
+    const showToast = useCallback((message, type = 'success') => {
+        setToast({ message, type });
+        const timer = setTimeout(() => {
+            setToast(null);
+        }, 3000); // Hide after 3 seconds
+        return () => clearTimeout(timer);
+    }, []);
 
 
     // Memoized map of advisors for quick lookup
@@ -693,7 +784,8 @@ export default function App() {
                 (order.clientLastName && order.clientLastName.toLowerCase().includes(lowerCaseSearchTerm)) ||
                 (order.clientEmail && order.clientEmail.toLowerCase().includes(lowerCaseSearchTerm)) ||
                 (order.clientPhone && order.clientPhone.toLowerCase().includes(lowerCaseSearchTerm)) ||
-                (order.itemName && order.itemName.toLowerCase().includes(lowerCaseSearchTerm)) ||
+                // Search within items array
+                (order.items && order.items.some(item => item.itemName.toLowerCase().includes(lowerCaseSearchTerm))) ||
                 (order.receiptNumber && order.receiptNumber.toLowerCase().includes(lowerCaseSearchTerm))
             );
         }
@@ -713,9 +805,14 @@ export default function App() {
                 const nameB = `${b.clientLastName} ${b.clientFirstName}`.toLowerCase();
                 return nameB.localeCompare(nameA);
             } else if (sortOrder === 'itemNameAsc') {
-                return (a.itemName || '').toLowerCase().localeCompare((b.itemName || '').toLowerCase());
+                // Sort by the first item name for simplicity, or implement more complex item sorting
+                const itemA = a.items?.[0]?.itemName || '';
+                const itemB = b.items?.[0]?.itemName || '';
+                return itemA.toLowerCase().localeCompare(itemB.toLowerCase());
             } else if (sortOrder === 'itemNameDesc') {
-                return (b.itemName || '').toLowerCase().localeCompare((a.itemName || '').toLowerCase());
+                const itemA = a.items?.[0]?.itemName || '';
+                const itemB = b.items?.[0]?.itemName || '';
+                return itemB.toLowerCase().localeCompare(itemA.toLowerCase());
             }
             return 0;
         });
@@ -734,14 +831,16 @@ export default function App() {
         } catch (error) {
             console.error("Login failed:", error.code);
             setLoginError("Email ou mot de passe incorrect.");
+            showToast("Échec de la connexion. Email ou mot de passe incorrect.", 'error');
         }
-    }, [auth]);
+    }, [auth, showToast]);
 
     // Handle user logout
     const handleLogout = useCallback(() => {
         signOut(auth);
         setShowOrderForm(false); // Close form if open
-    }, [auth]);
+        showToast("Déconnexion réussie.", 'success');
+    }, [auth, showToast]);
 
     // Helper to get current user info for history/tracking
     const getCurrentUserInfo = useCallback(() => {
@@ -755,6 +854,7 @@ export default function App() {
     const handleSaveOrder = useCallback(async (orderData) => {
         if (!db || !currentUser) {
             setDbError("Vous devez être connecté pour passer ou modifier une commande.");
+            showToast("Erreur: Vous devez être connecté.", 'error');
             return;
         }
         setIsSaving(true);
@@ -767,13 +867,14 @@ export default function App() {
                     timestamp: now,
                     action: "Commande modifiée",
                     by: userInfo,
-                    notes: `Mise à jour: ${JSON.stringify({ itemName: orderData.itemName, quantity: orderData.quantity, clientFirstName: orderData.clientFirstName, clientLastName: orderData.clientLastName, clientEmail: orderData.clientEmail, clientPhone: orderData.clientPhone, receiptNumber: orderData.receiptNumber, orderNotes: orderData.orderNotes })}`
+                    notes: `Mise à jour: ${JSON.stringify(orderData)}` // Stringify full orderData for comprehensive notes
                 }];
                 await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), {
                     ...orderData,
                     history: updatedHistory,
                 });
                 setEditingOrder(null); // Exit edit mode
+                showToast("Commande modifiée avec succès !", 'success');
             } else { // Placing a new order
                 const newOrder = {
                     ...orderData,
@@ -783,26 +884,28 @@ export default function App() {
                     receivedBy: null,
                     receptionDate: null,
                     notifiedBy: null,
-                    notificationDate: null,
                     pickedUpBy: null,
                     pickedUpDate: null,
                     history: [{ timestamp: now, action: `Commande ${ORDER_STATUSES.ORDERED.name.toLowerCase()}`, by: userInfo }]
                 };
                 await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder);
+                showToast("Commande ajoutée avec succès !", 'success');
             }
             setShowOrderForm(false);
         } catch (e) {
             console.error("Error saving order:", e);
             setDbError("L'enregistrement de la commande a échoué. Vérifiez la console pour plus de détails.");
+            showToast("Échec de l'enregistrement de la commande.", 'error');
         } finally {
             setIsSaving(false);
         }
-    }, [db, currentUser, editingOrder, getCurrentUserInfo]);
+    }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
 
     // Handle updating order status (e.g., Received, Notified)
     const handleUpdateOrderStatus = useCallback(async (orderId, newStatusName) => {
         if (!db || !currentUser || !isAdmin) {
             setDbError("Accès non autorisé pour cette action.");
+            showToast("Accès non autorisé.", 'error');
             return;
         }
         setIsSaving(true);
@@ -843,19 +946,22 @@ export default function App() {
             updateData.history = updatedHistory;
 
             await updateDoc(orderRef, updateData);
+            showToast(`Statut mis à jour en "${newStatusName}"`, 'success');
         } catch (e) {
             console.error(`Error updating order status to ${newStatusName}:`, e);
             setDbError("Échec de la mise à jour du statut. Vérifiez la console.");
+            showToast("Échec de la mise à jour du statut.", 'error');
         } finally {
             setIsSaving(false);
         }
-    }, [db, currentUser, isAdmin, orders, getCurrentUserInfo]);
+    }, [db, currentUser, isAdmin, orders, getCurrentUserInfo, showToast]);
 
 
     // Handle order cancellation (only admin)
     const handleConfirmCancel = useCallback(async () => {
         if (!db || !currentUser || !isAdmin || !orderToCancelId) {
             setDbError("Accès non autorisé pour annuler la commande.");
+            showToast("Accès non autorisé.", 'error');
             return;
         }
         setIsSaving(true);
@@ -877,18 +983,21 @@ export default function App() {
                 history: updatedHistory
             });
             setOrderToCancelId(null);
+            showToast("Commande annulée avec succès.", 'success');
         } catch (e) {
             console.error("Error cancelling order:", e);
             setDbError("Échec de l'annulation de la commande. Vérifiez la console.");
+            showToast("Échec de l'annulation de la commande.", 'error');
         } finally {
             setIsSaving(false);
         }
-    }, [db, currentUser, isAdmin, orderToCancelId, orders, getCurrentUserInfo]);
+    }, [db, currentUser, isAdmin, orderToCancelId, orders, getCurrentUserInfo, showToast]);
 
     // Handle order deletion (only admin)
     const handleConfirmDelete = useCallback(async () => {
         if (!db || !currentUser || !isAdmin || !orderToDeleteId) {
             setDbError("Accès non autorisé pour supprimer la commande.");
+            showToast("Accès non autorisé.", 'error');
             return;
         }
         setIsSaving(true);
@@ -897,13 +1006,15 @@ export default function App() {
         try {
             await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId));
             setOrderToDeleteId(null);
+            showToast("Commande supprimée avec succès.", 'success');
         } catch (e) {
             console.error("Error deleting order:", e);
             setDbError("Échec de la suppression de la commande. Vérifiez la console.");
+            showToast("Échec de la suppression de la commande.", 'error');
         } finally {
             setIsSaving(false);
         }
-    }, [db, currentUser, isAdmin, orderToDeleteId]);
+    }, [db, currentUser, isAdmin, orderToDeleteId, showToast]);
 
     // Show order history modal
     const handleShowOrderHistory = useCallback((order) => {
@@ -920,39 +1031,44 @@ export default function App() {
     // Advisor Management Callbacks
     const handleSaveAdvisor = useCallback(async (advisorData) => {
         if (!db || !isAdmin) {
+            showToast("Accès non autorisé.", 'error');
             throw new Error("Seul l'administrateur peut ajouter/modifier les conseillers.");
         }
         setIsSaving(true);
         try {
-            // Use the email as the document ID for advisors for easy lookup
             const docRef = doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorData.email.toLowerCase());
             await setDoc(docRef, {
                 name: advisorData.name,
                 email: advisorData.email.toLowerCase(),
-            }, { merge: true }); // Use merge to avoid overwriting if doc exists
+            }, { merge: true });
+            showToast("Conseiller enregistré avec succès !", 'success');
         } catch (e) {
             console.error("Error saving advisor:", e);
+            showToast("Échec de l'enregistrement du conseiller.", 'error');
             throw new Error("Échec de l'enregistrement du conseiller.");
         } finally {
             setIsSaving(false);
         }
-    }, [db, isAdmin]);
+    }, [db, isAdmin, showToast]);
 
     const handleDeleteAdvisor = useCallback(async (advisorId) => {
         if (!db || !isAdmin) {
+            showToast("Accès non autorisé.", 'error');
             setDbError("Seul l'administrateur peut supprimer les conseillers.");
             return;
         }
         setIsSaving(true);
         try {
             await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorId));
+            showToast("Conseiller supprimé avec succès.", 'success');
         } catch (e) {
             console.error("Error deleting advisor:", e);
             setDbError("Échec de la suppression du conseiller.");
+            showToast("Échec de la suppression du conseiller.", 'error');
         } finally {
             setIsSaving(false);
         }
-    }, [db, isAdmin]);
+    }, [db, isAdmin, showToast]);
 
 
     if (!authReady) {
@@ -977,6 +1093,8 @@ export default function App() {
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
             <AnimationStyles />
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
             {showConfirmCancel && (
                 <ConfirmationModal
                     message="Voulez-vous vraiment annuler cette commande ?"
@@ -1141,7 +1259,7 @@ export default function App() {
                 )}
 
                 {!isLoading && filteredAndSortedOrders.length > 0 && (
-                    <div className="flex flex-col gap-6 animate-fade-in"> {/* Changed from grid to flex-col */}
+                    <div className="flex flex-col gap-6 animate-fade-in">
                         {filteredAndSortedOrders.map((order) => (
                             <OrderCard
                                 key={order.id}
