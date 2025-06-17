@@ -1,24 +1,23 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, deleteApp } from 'firebase/app';
 import { 
     getFirestore, collection, query, onSnapshot, doc, setDoc, deleteDoc, 
-    orderBy, serverTimestamp, writeBatch, arrayUnion, getDoc
+    orderBy, serverTimestamp, arrayUnion, getDoc
 } from 'firebase/firestore';
 import { 
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, 
     createUserWithEmailAndPassword, updateProfile 
 } from 'firebase/auth';
 import { 
-    Package, PackageCheck, PackageOpen, User, Plus, Edit, Trash2, LogIn, LogOut, 
-    UserCheck, X, AlertTriangle, ChevronDown, ChevronUp, History, CheckCircle, Clock, Users, ShieldCheck
+    Package, PackageCheck, PackageOpen, Plus, Edit, Trash2, LogIn, LogOut, 
+    UserCheck, X, AlertTriangle, ChevronDown, History, CheckCircle, Clock, Users, ShieldCheck
 } from 'lucide-react';
 
 // =================================================================
-// CONFIGURATION FIREBASE & CONSTANTES
+// CONFIGURATION ET INITIALISATION FIREBASE (UNE SEULE FOIS)
 // =================================================================
 const firebaseConfig = {
-    // Votre configuration Firebase reste ici
     apiKey: "AlzaSyDonMYAFvy4kB8NmxSYF77bpJ5IRTwptR4",
     authDomain: "aod-tracker-os.firebaseapp.com",
     projectId: "aod-tracker-os",
@@ -26,6 +25,11 @@ const firebaseConfig = {
     messagingSenderId: "429289937311",
     appId: "1:429289937311:web:1ab993b09899afc2b245aa",
 };
+
+// Initialisation de Firebase une seule fois pour toute l'application
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 const APP_ID = "aod-tracker-os";
 const ADMIN_BOOTSTRAP_EMAIL = "jullien.gault@orange-store.com"; // Email pour le premier admin
@@ -43,22 +47,14 @@ const useAuth = () => {
     const [user, setUser] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [auth, setAuth] = useState(null);
-    const [db, setDb] = useState(null);
 
     useEffect(() => {
-        const app = initializeApp(firebaseConfig);
-        const authInstance = getAuth(app);
-        const firestoreInstance = getFirestore(app);
-        setAuth(authInstance);
-        setDb(firestoreInstance);
-
-        const unsubscribe = onAuthStateChanged(authInstance, async (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
-                const userDocRef = doc(firestoreInstance, 'users', currentUser.uid);
+                const userDocRef = doc(db, 'users', currentUser.uid);
                 let userDocSnap = await getDoc(userDocRef);
 
-                // Bootstrap pour le premier admin
+                // Bootstrap pour le premier admin s'il n'a pas de document dans Firestore
                 if (!userDocSnap.exists() && currentUser.email === ADMIN_BOOTSTRAP_EMAIL) {
                     const adminData = {
                         displayName: currentUser.displayName || currentUser.email.split('@')[0],
@@ -75,7 +71,7 @@ const useAuth = () => {
                     setUser({ ...currentUser, ...userData });
                     setIsAdmin(userData.role === 'admin');
                 } else {
-                    // Utilisateur authentifié mais pas de document dans 'users'
+                    // Utilisateur authentifié mais pas de document dans 'users' (cas non-admin)
                     setUser(currentUser);
                     setIsAdmin(false);
                 }
@@ -89,7 +85,7 @@ const useAuth = () => {
         return () => unsubscribe();
     }, []);
 
-    return { user, isAdmin, loading, auth, db };
+    return { user, isAdmin, loading };
 };
 
 
@@ -205,6 +201,7 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
     const [password, setPassword] = useState('');
     const [role, setRole] = useState('conseiller');
     const [error, setError] = useState('');
+    const [isRegistering, setIsRegistering] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -213,6 +210,7 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
             setError('Le mot de passe doit contenir au moins 6 caractères.');
             return;
         }
+        setIsRegistering(true);
         try {
             await onRegister({ displayName, email, password, role });
             // Reset form on success
@@ -222,6 +220,8 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
             setRole('conseiller');
         } catch(err) {
             setError(err.message);
+        } finally {
+            setIsRegistering(false);
         }
     };
     
@@ -240,7 +240,9 @@ const UserManagementModal = ({ onRegister, onClose, advisors }) => {
                         <option value="admin">Administrateur</option>
                     </select>
                     {error && <p className="text-red-400 text-sm">{error}</p>}
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-2 px-4 rounded-lg">Créer l'utilisateur</button>
+                    <button type="submit" disabled={isRegistering} className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-2 px-4 rounded-lg disabled:bg-gray-500 disabled:cursor-not-allowed">
+                        {isRegistering ? 'Création en cours...' : 'Créer l\'utilisateur'}
+                    </button>
                 </form>
             </div>
             <div>
@@ -289,7 +291,7 @@ const OrderCard = ({ order, onStatusChange, onEdit, onDelete, isAdmin }) => {
                 <div>
                     <h3 className="text-xl font-bold text-white">{order.clientName}</h3>
                     <p className="text-gray-300">{order.accessory}</p>
-                    <p className="text-xs text-gray-400 mt-1">Par {order.advisorName} - {new Date(order.createdAt?.toDate()).toLocaleDateString('fr-FR')}</p>
+                    <p className="text-xs text-gray-400 mt-1">Par {order.advisorName} - {order.createdAt ? new Date(order.createdAt.toDate()).toLocaleDateString('fr-FR') : 'Date inconnue'}</p>
                 </div>
                 <StatusPill status={order.status} />
             </div>
@@ -322,7 +324,7 @@ const OrderCard = ({ order, onStatusChange, onEdit, onDelete, isAdmin }) => {
                         {order.history?.slice().reverse().map((entry, i) => (
                             <li key={i} className="pl-2">
                                 <p><strong>{entry.status}</strong> par {entry.updatedBy}</p>
-                                <p>{new Date(entry.updatedAt?.toDate()).toLocaleString('fr-FR')}</p>
+                                <p>{entry.updatedAt ? new Date(entry.updatedAt.toDate()).toLocaleString('fr-FR') : 'Date inconnue'}</p>
                             </li>
                         ))}
                     </ul>
@@ -336,7 +338,7 @@ const OrderCard = ({ order, onStatusChange, onEdit, onDelete, isAdmin }) => {
 // COMPOSANT PRINCIPAL : App
 // =================================================================
 export default function App() {
-    const { user, isAdmin, loading, auth, db } = useAuth();
+    const { user, isAdmin, loading } = useAuth();
     const [orders, setOrders] = useState([]);
     const [advisors, setAdvisors] = useState([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
@@ -346,52 +348,58 @@ export default function App() {
     const [authError, setAuthError] = useState(null);
     const [confirmAction, setConfirmAction] = useState(null);
 
+    // Change le titre de l'onglet du navigateur
+    useEffect(() => {
+        document.title = "AOD Tracker OS";
+    }, []);
+
     // Fetch Advisors (Users)
     useEffect(() => {
-        if (!db) return;
         const q = query(collection(db, 'users'), orderBy('displayName'));
         const unsubscribe = onSnapshot(q, snapshot => {
             const usersList = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
             setAdvisors(usersList);
         });
         return () => unsubscribe();
-    }, [db]);
+    }, []);
 
     // Fetch Orders
     useEffect(() => {
-        if (!db) return;
         setIsLoadingData(true);
         const q = query(collection(db, `artifacts/${APP_ID}/public/data/orders`), orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, snapshot => {
             setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             setIsLoadingData(false);
         }, err => {
-            console.error(err);
+            console.error("Erreur de lecture des commandes:", err);
             setIsLoadingData(false);
         });
         return () => unsubscribe();
-    }, [db]);
+    }, []);
 
     const handleLogin = useCallback(async (email, password) => {
         setAuthError(null);
         try {
             await signInWithEmailAndPassword(auth, email, password);
         } catch (error) {
-            setAuthError("Email ou mot de passe incorrect.");
+            console.error("Erreur de connexion (code):", error.code);
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                setAuthError("Email ou mot de passe incorrect.");
+            } else {
+                setAuthError("Une erreur de connexion est survenue.");
+            }
         }
-    }, [auth]);
+    }, []);
 
     const handleLogout = useCallback(() => {
         signOut(auth);
-    }, [auth]);
+    }, []);
     
     const handleRegisterUser = useCallback(async ({ displayName, email, password, role }) => {
-        if (!auth || !db) throw new Error("Authentification non initialisée.");
-
+        let tempApp;
         try {
-            // NOTE: This creates a temporary second auth instance for registration.
-            // This is a common pattern to create users while being logged in as an admin.
-            const tempApp = initializeApp(firebaseConfig, 'tempAppForRegistration');
+            // Utilise une instance temporaire de l'app pour créer un utilisateur tout en étant connecté en tant qu'admin
+            tempApp = initializeApp(firebaseConfig, 'tempAppForRegistration');
             const tempAuth = getAuth(tempApp);
 
             const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
@@ -406,33 +414,30 @@ export default function App() {
                 createdAt: serverTimestamp()
             });
             
-            await signOut(tempAuth); // Sign out the temporary user
-            try {
-                // This might fail in some environments but it's good practice
-                // await deleteApp(tempApp); 
-            } catch (e) {
-                console.warn("Could not delete temporary app instance:", e)
-            }
-
+            await signOut(tempAuth);
         } catch (error) {
-            console.error("Erreur de création d'utilisateur:", error);
+            console.error("Erreur de création d'utilisateur:", error.code, error.message);
             if (error.code === 'auth/email-already-in-use') {
                  throw new Error("Cet email est déjà utilisé.");
             }
-            throw new Error("Une erreur est survenue.");
+            throw new Error("Une erreur est survenue lors de la création.");
+        } finally {
+            // Nettoie l'instance temporaire de l'app
+            if (tempApp) {
+                await deleteApp(tempApp);
+            }
         }
-    }, [auth, db]);
-
+    }, []);
 
     const handleSaveOrder = useCallback(async (orderData) => {
-        if (!db || !user) return;
+        if (!user) return;
         const orderId = editingOrder?.id || doc(collection(db, `artifacts/${APP_ID}/public/data/orders`)).id;
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
 
         try {
-            if (editingOrder) { // Modification
+            if (editingOrder) {
                 await setDoc(orderRef, orderData, { merge: true });
-            } else { // Ajout
+            } else {
                 const newOrder = {
                     ...orderData,
                     id: orderId,
@@ -451,10 +456,10 @@ export default function App() {
         } catch (error) {
             console.error("Erreur d'enregistrement:", error);
         }
-    }, [db, user, editingOrder]);
+    }, [user, editingOrder]);
     
     const handleStatusChange = useCallback(async (orderId, newStatus) => {
-        if (!db || !user) return;
+        if (!user) return;
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
         const historyEntry = {
             status: newStatus,
@@ -469,14 +474,13 @@ export default function App() {
         } catch (error) {
             console.error("Erreur de mise à jour du statut:", error);
         }
-    }, [db, user]);
+    }, [user]);
 
     const handleDeleteOrder = (orderId) => {
         setConfirmAction({
             title: "Supprimer la commande ?",
             message: "Cette action est irréversible. La commande sera définitivement supprimée.",
             onConfirm: async () => {
-                if (!db) return;
                 const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
                 try {
                     await deleteDoc(orderRef);
@@ -487,7 +491,6 @@ export default function App() {
             }
         });
     };
-
 
     if (loading) {
         return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" /></div>;
@@ -546,7 +549,7 @@ export default function App() {
                     <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-gray-300 flex items-center gap-2">{user.displayName || user.email} {isAdmin && <span className="text-xs font-bold text-blue-300 bg-blue-500/20 px-2 py-1 rounded-full">Admin</span>}</span>
                         {isAdmin && (
-                            <button onClick={() => setIsUserModalOpen(true)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2"><Users size={18}/> Gérer les utilisateurs</button>
+                            <button onClick={() => setIsUserModalOpen(true)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2"><Users size={18}/> Gérer</button>
                         )}
                         <button onClick={() => { setEditingOrder(null); setIsOrderModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2"><Plus size={18}/> Ajouter</button>
                         <button onClick={handleLogout} title="Se déconnecter" className="text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800 hover:bg-gray-700"><LogOut size={20}/></button>
