@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import ReactDOM from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, Slash } from 'lucide-react'; // Added Check and Slash for toast icons
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, deleteUser } from 'firebase/auth'; // Added createUserWithEmailAndPassword, deleteUser
+import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, Slash } from 'lucide-react';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES
@@ -160,7 +160,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Adjusted max-w to max-w-2xl */}
                 <button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -492,9 +492,11 @@ const LoginForm = ({ onLogin, error, onClose }) => {
 };
 
 // Advisor Management Component
-const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => {
+const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => { // Added 'auth' prop
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState(''); // New state for password
+    const [role, setRole] = useState('counselor'); // New state for role
     const [editAdvisorId, setEditAdvisorId] = useState(null);
     const [formError, setFormError] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -502,8 +504,8 @@ const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdv
     const handleAddUpdateAdvisor = async (e) => {
         e.preventDefault();
         setFormError(null);
-        if (!name.trim() || !email.trim()) {
-            setFormError("Le nom et l'email du conseiller sont obligatoires.");
+        if (!name.trim() || !email.trim() || (!editAdvisorId && !password.trim())) { // Password required only for new user
+            setFormError("Le nom, l'email et le mot de passe (pour un nouvel utilisateur) du conseiller sont obligatoires.");
             return;
         }
         if (!email.includes('@')) {
@@ -512,9 +514,36 @@ const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdv
         }
         setIsSaving(true);
         try {
-            await onSaveAdvisor({ id: editAdvisorId, name: name.trim(), email: email.trim().toLowerCase() });
+            if (!editAdvisorId) { // Create new user in Firebase Auth
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                } catch (authError) {
+                    if (authError.code === 'auth/email-already-in-use') {
+                        setFormError("Cet email est déjà utilisé pour un autre compte.");
+                        setIsSaving(false);
+                        return;
+                    }
+                    if (authError.code === 'auth/weak-password') {
+                        setFormError("Le mot de passe est trop faible (minimum 6 caractères).");
+                        setIsSaving(false);
+                        return;
+                    }
+                    setFormError(`Erreur d'authentification: ${authError.message}`);
+                    setIsSaving(false);
+                    return;
+                }
+            }
+            // Save/Update advisor profile in Firestore
+            await onSaveAdvisor({
+                id: editAdvisorId,
+                name: name.trim(),
+                email: email.trim().toLowerCase(),
+                role: role,
+            });
             setName('');
             setEmail('');
+            setPassword('');
+            setRole('counselor');
             setEditAdvisorId(null);
         } catch (error) {
             setFormError(`Erreur lors de l'enregistrement: ${error.message}`);
@@ -526,14 +555,42 @@ const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdv
     const handleEditClick = (advisor) => {
         setName(advisor.name);
         setEmail(advisor.email);
+        setRole(advisor.role || 'counselor'); // Set existing role
+        setPassword(''); // Password not editable directly for existing users
         setEditAdvisorId(advisor.id);
     };
 
     const handleCancelEdit = () => {
         setName('');
         setEmail('');
+        setPassword('');
+        setRole('counselor');
         setEditAdvisorId(null);
         setFormError(null);
+    };
+
+    const handleDeleteClick = async (advisor) => {
+        if (advisor.email === adminEmail) {
+            setFormError("Vous ne pouvez pas supprimer le compte administrateur principal.");
+            return;
+        }
+        // This deletion is complex and should ideally be done server-side via Firebase Admin SDK
+        // because client-side deleteUser only works for the currently signed-in user.
+        // For the scope of this Canvas app, we'll delete the Firestore entry.
+        // A real app would use a Cloud Function to delete the Auth user too.
+        if (window.confirm(`Êtes-vous sûr de vouloir supprimer le conseiller ${advisor.name} (${advisor.email})? Cette action est irréversible et ne supprime PAS le compte d'authentification Firebase associé pour des raisons de sécurité côté client.`)) {
+             setIsSaving(true);
+             try {
+                 await onDeleteAdvisor(advisor.id); // Deletes from Firestore
+                 // Cannot delete Auth user here directly unless it's the current user for security reasons.
+                 // For a robust app, this would trigger a cloud function to delete the Auth user.
+                 alert("Conseiller supprimé de la liste. Note: le compte d'authentification Firebase n'est pas supprimé côté client.");
+             } catch (error) {
+                 setFormError(`Erreur lors de la suppression: ${error.message}`);
+             } finally {
+                 setIsSaving(false);
+             }
+         }
     };
 
     if (!isAdmin) {
@@ -563,7 +620,21 @@ const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdv
                     </div>
                     <div>
                         <label htmlFor="advisorEmail" className="block text-sm font-medium text-gray-300 mb-1">Email du conseiller *</label>
-                        <input id="advisorEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" />
+                        <input id="advisorEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" readOnly={!!editAdvisorId} /> {/* Email is readOnly when editing */}
+                    </div>
+                    {!editAdvisorId && ( // Password field only for new advisors
+                        <div>
+                            <label htmlFor="advisorPassword" className="block text-sm font-medium text-gray-300 mb-1">Mot de passe (temporaire) *</label>
+                            <input id="advisorPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" />
+                            <p className="text-xs text-gray-400 mt-1">Min. 6 caractères. Le conseiller pourra le changer plus tard.</p>
+                        </div>
+                    )}
+                    <div>
+                        <label htmlFor="advisorRole" className="block text-sm font-medium text-gray-300 mb-1">Rôle *</label>
+                        <select id="advisorRole" value={role} onChange={(e) => setRole(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg">
+                            <option value="counselor">Conseiller</option>
+                            <option value="admin">Admin</option>
+                        </select>
                     </div>
                     {formError && <p className="text-red-400 text-sm">{formError}</p>}
                     <div className="flex gap-4">
@@ -588,13 +659,13 @@ const AdvisorManagementForm = ({ db, appId, advisors, onSaveAdvisor, onDeleteAdv
                                 <li key={advisor.id} className="flex items-center justify-between bg-gray-700/50 p-3 rounded-lg">
                                     <div>
                                         <p className="font-medium text-white">{advisor.name}</p>
-                                        <p className="text-sm text-gray-400">{advisor.email}</p>
+                                        <p className="text-sm text-gray-400">{advisor.email} (<span className="capitalize">{advisor.role}</span>)</p> {/* Display role */}
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => handleEditClick(advisor)} className="text-blue-400 hover:text-blue-300 transition-colors">
                                             <Edit size={20} />
                                         </button>
-                                        <button onClick={() => onDeleteAdvisor(advisor.id)} className="text-red-400 hover:text-red-300 transition-colors">
+                                        <button onClick={() => handleDeleteClick(advisor)} className="text-red-400 hover:text-red-300 transition-colors" disabled={advisor.email === adminEmail}> {/* Prevent deleting primary admin */}
                                             <Trash2 size={20} />
                                         </button>
                                     </div>
@@ -678,15 +749,17 @@ export default function App() {
             const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
                 if (user) {
                     setCurrentUser(user);
-                    setIsAdmin(user.email === ADMIN_EMAIL);
-                    setShowLogin(false); // Hide login if user logs in
-                    setAuthReady(true); // Auth is ready as a user is logged in
+                    // Determine isAdmin based on ADMIN_EMAIL or role from Firestore
+                    const userProfile = advisorsMap[user.email?.toLowerCase()];
+                    setIsAdmin(user.email === ADMIN_EMAIL || userProfile?.role === 'admin');
+                    setShowLogin(false);
+                    setAuthReady(true);
                 } else {
                     setCurrentUser(null);
                     setIsAdmin(false);
-                    setAuthReady(true); // Auth is ready, but no user is logged in
-                    setShowLogin(true); // Show login form if not authenticated
-                    setIsLoading(false); // Stop loading as we're waiting for login
+                    setAuthReady(true);
+                    setShowLogin(true);
+                    setIsLoading(false);
                 }
             });
             return () => unsubscribe();
@@ -695,39 +768,17 @@ export default function App() {
             setDbError("Configuration Firebase invalide.");
             setIsLoading(false);
         }
-    }, []);
+    }, [advisorsMap]); // Added advisorsMap as dependency so isAdmin updates if roles change
 
     // Fetch advisors from Firestore
     useEffect(() => {
-        if (!authReady || !db || !currentUser) return; // Only fetch if authenticated
+        if (!authReady || !db) return; // Fetch advisors regardless of currentUser login, but after auth is ready
 
         const advisorsColRef = collection(db, `artifacts/${APP_ID}/public/data/advisors`);
         const unsubscribe = onSnapshot(advisorsColRef,
             async (snapshot) => {
                 const fetchedAdvisors = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
                 setAdvisors(fetchedAdvisors);
-
-                // Initialize default advisors if collection is empty (only for admin first time)
-                if (fetchedAdvisors.length === 0 && isAdmin) {
-                    console.log("Initializing default advisors for admin...");
-                    if (currentUser && currentUser.email === ADMIN_EMAIL) {
-                        for (const advisor of [{ name: 'Enzo', email: 'enzo@orange-store.com' },
-                                                { name: 'Guewen', email: 'guewen@orange-store.com' },
-                                                { name: 'Jullien', email: 'jullien.gault@orange-store.com' },
-                                                { name: 'Kenza', email: 'kenza@orange-store.com' },
-                                                { name: 'Manuel', email: 'manuel@orange-store.com' },
-                                                { name: 'Marie', email: 'marie@orange-store.com' },
-                                                { name: 'Marvyn', email: 'marvyn@orange-store.com' },
-                                                { name: 'Tom', email: 'tom@orange-store.com' }]) {
-                            try {
-                                // Use the email as the document ID for advisors for easy lookup
-                                await setDoc(doc(advisorsColRef, advisor.email.toLowerCase()), advisor);
-                            } catch (e) {
-                                console.error("Error setting default advisor:", e);
-                            }
-                        }
-                    }
-                }
             },
             (err) => {
                 console.error("Error fetching advisors:", err);
@@ -735,13 +786,12 @@ export default function App() {
             }
         );
         return () => unsubscribe();
-    }, [authReady, db, isAdmin, currentUser]); // Rerun if isAdmin or currentUser changes
+    }, [authReady, db]); // Removed isAdmin, currentUser from dependency array to allow fetching advisor list even before login
 
     // Fetch orders from Firestore
     useEffect(() => {
         if (!authReady || !db || !currentUser) return; // Only fetch if authenticated
 
-        // Public data collection for orders
         const ordersCollectionRef = collection(db, `artifacts/${APP_ID}/public/data/orders`);
         const q = query(ordersCollectionRef, orderBy("orderDate", "desc"));
 
@@ -846,8 +896,9 @@ export default function App() {
     const getCurrentUserInfo = useCallback(() => {
         if (!currentUser) return null;
         // Lookup display name from advisorsMap
-        const displayName = advisorsMap[currentUser.email?.toLowerCase()]?.name || currentUser.email || 'Inconnu';
-        return { uid: currentUser.uid, email: currentUser.email, name: displayName };
+        const userProfile = advisorsMap[currentUser.email?.toLowerCase()];
+        const displayName = userProfile?.name || currentUser.email || 'Inconnu';
+        return { uid: currentUser.uid, email: currentUser.email, name: displayName, role: userProfile?.role || (currentUser.email === ADMIN_EMAIL ? 'admin' : 'unknown') };
     }, [currentUser, advisorsMap]);
 
     // Handle placing a new order or updating an existing one
@@ -1040,7 +1091,8 @@ export default function App() {
             await setDoc(docRef, {
                 name: advisorData.name,
                 email: advisorData.email.toLowerCase(),
-            }, { merge: true });
+                role: advisorData.role // Save the role
+            }, { merge: true }); // Use merge to avoid overwriting if doc exists
             showToast("Conseiller enregistré avec succès !", 'success');
         } catch (e) {
             console.error("Error saving advisor:", e);
@@ -1059,8 +1111,17 @@ export default function App() {
         }
         setIsSaving(true);
         try {
+            // Attempt to delete the user from Firebase Auth as well
+            // This requires a privileged environment (e.g., Firebase Admin SDK in a Cloud Function)
+            // It's not directly possible from client-side for arbitrary users due to security.
+            // For this self-contained Canvas app, we'll indicate this limitation.
+            // const userToDelete = auth.currentUser; // This would only delete the *current* user
+            // if (userToDelete && userToDelete.email.toLowerCase() === advisorId.toLowerCase()) {
+            //     await deleteUser(userToDelete);
+            // }
+
             await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorId));
-            showToast("Conseiller supprimé avec succès.", 'success');
+            showToast("Conseiller supprimé avec succès. (Compte Auth non supprimé)", 'success'); // Indicate Auth user not deleted
         } catch (e) {
             console.error("Error deleting advisor:", e);
             setDbError("Échec de la suppression du conseiller.");
@@ -1118,6 +1179,7 @@ export default function App() {
             {showAdvisorManagement && (
                 <AdvisorManagementForm
                     db={db}
+                    auth={auth} // Pass auth instance
                     appId={APP_ID}
                     advisors={advisors}
                     onSaveAdvisor={handleSaveAdvisor}
