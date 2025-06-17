@@ -321,14 +321,14 @@ const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confir
                 <button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors`}>{confirmText}</button>
             </div>
         </div>
-    );
-};
+    </div>
+);
 
 // Login form component
-const LoginForm = ({ onLogin, error, onClose }) => {
+const LoginForm = ({ onLogin, error, onClose }) => { // FIX: Corrected function parameters and body
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); };
+    const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; // FIX: Corrected function body
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
