@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import ReactDOM from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, signInAnonymously } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit } from 'lucide-react';
 
 // =================================================================
@@ -325,10 +325,10 @@ const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confir
 );
 
 // Login form component
-const LoginForm = ({ onLogin, error, onClose }) => { // FIX: Corrected function parameters and body
+const LoginForm = ({ onLogin, error, onClose }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; // FIX: Corrected function body
+    const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
@@ -363,6 +363,7 @@ export default function App() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [authReady, setAuthReady] = useState(false);
     const [loginError, setLoginError] = useState(null);
+    const [showLogin, setShowLogin] = useState(false);
 
     const [showOrderForm, setShowOrderForm] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null); // Stores order data if in edit mode
@@ -392,16 +393,13 @@ export default function App() {
                 } else {
                     setCurrentUser(null);
                     setIsAdmin(false);
-                    // Attempt anonymous sign-in if not logged in
+                    // If no user is logged in (including after failed custom token login),
+                    // attempt anonymous sign-in to satisfy Firestore rules that require authentication.
                     try {
-                        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                        if (token) {
-                            await signInWithCustomToken(authInstance, token);
-                        } else {
-                            await signInAnonymously(authInstance);
-                        }
+                        await signInAnonymously(authInstance);
                     } catch (err) {
-                        console.error("Anonymous sign-in failed", err);
+                        console.error("Anonymous sign-in failed:", err);
+                        setDbError("Impossible de se connecter anonymement pour accéder aux données.");
                     }
                 }
                 setAuthReady(true);
