@@ -757,6 +757,11 @@ export default function App() {
     
     const [toast, setToast] = useState(null);
 
+    // Mettre à jour le titre de la page
+    useEffect(() => {
+        document.title = "AOD Tracker OS";
+    }, []);
+
     const showToast = useCallback((message, type = 'success') => {
         setToast({ message, type });
         const timer = setTimeout(() => {
@@ -1207,7 +1212,7 @@ export default function App() {
             <div className="max-w-7xl mx-auto">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1>
+                        <h1 className="text-4xl font-bold tracking-tight">AOD Tracker OS</h1> {/* Titre de l'application */}
                         <p className="text-gray-400 mt-1">
                             Suivez vos commandes d'accessoires en temps réel.
                         </p>
@@ -1254,7 +1259,7 @@ export default function App() {
                     </div>
                 </header>
 
-                {/* New Filter and Sort Controls */}
+                {/* Filter and Sort Controls */}
                 {currentUser && (
                     <div className="flex flex-wrap items-center gap-4 mb-8">
                         {/* Search Input */}
