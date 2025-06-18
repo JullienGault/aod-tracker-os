@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw // Ajout de RefreshCcw pour le bouton de retour
 } from 'lucide-react';
 
 // =================================================================
@@ -35,43 +35,48 @@ const ORDER_STATUSES_CONFIG = {
         colorClass: 'bg-yellow-500', // Couleurs Tailwind pour les badges
         icon: Package, // Icône de colis
         order: 1,
-        allowTransitionTo: ['RECEIVED_IN_STORE', 'CANCELLED'] // Peut être reçu ou annulé
+        allowTransitionTo: ['RECEIVED_IN_STORE', 'CANCELLED'],
+        allowTransitionFrom: [] // Aucun statut précédent logique pour "Commandé"
     },
     // Statut intermédiaire
     RECEIVED_IN_STORE: {
         label: 'Reçu en boutique',
         description: 'L\'article a été reçu en magasin et est prêt à être traité.',
-        colorClass: 'bg-green-500', // Couleurs Tailwind pour les badges
+        colorClass: 'bg-green-500',
         icon: Truck, // Icône de camion/livraison
         order: 2,
-        allowTransitionTo: ['CLIENT_NOTIFIED', 'CANCELLED'] // Peut être notifié ou annulé
+        allowTransitionTo: ['CLIENT_NOTIFIED', 'CANCELLED'],
+        allowTransitionFrom: ['ORDERED'] // Peut revenir de "Commandé" (si erreur de saisie, par exemple)
     },
     // Statut intermédiaire
     CLIENT_NOTIFIED: {
         label: 'Client prévenu',
         description: 'Le client a été informé que sa commande est disponible.',
-        colorClass: 'bg-blue-500', // Couleurs Tailwind pour les badges
+        colorClass: 'bg-blue-500',
         icon: Bell, // Icône de notification
         order: 3,
-        allowTransitionTo: ['PICKED_UP', 'CANCELLED'] // Peut être retiré ou annulé
+        allowTransitionTo: ['PICKED_UP', 'CANCELLED'],
+        allowTransitionFrom: ['RECEIVED_IN_STORE'] // Peut revenir de "Reçu en boutique"
     },
     // Statut terminal (succès)
     PICKED_UP: {
         label: 'Client a retiré',
         description: 'Le client a récupéré sa commande.',
-        colorClass: 'bg-purple-600', // Couleurs Tailwind pour les badges
+        colorClass: 'bg-purple-600',
         icon: UserCheck, // Icône d'utilisateur avec coche
         order: 4,
-        allowTransitionTo: [] // Statut final
+        allowTransitionTo: [], // Statut final
+        allowTransitionFrom: ['CLIENT_NOTIFIED'] // Peut revenir de "Client prévenu" (erreur de scan, etc.)
     },
     // Statut terminal (échec/fin)
     CANCELLED: {
         label: 'Annulée',
         description: 'La commande a été annulée.',
-        colorClass: 'bg-red-500', // Couleurs Tailwind pour les badges
+        colorClass: 'bg-red-500',
         icon: X, // Icône de croix/annulation
         order: 5,
-        allowTransitionTo: [] // Statut final
+        allowTransitionTo: [], // Statut final
+        allowTransitionFrom: ['ORDERED', 'RECEIVED_IN_STORE', 'CLIENT_NOTIFIED', 'PICKED_UP'] // Peut être annulé depuis presque n'importe quel statut
     }
 };
 
@@ -312,7 +317,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 };
 
 // Composant pour afficher une carte de commande individuelle
-const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap }) => {
+const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap, onRevertStatus }) => {
     // Détermine la couleur du badge de statut
     const getStatusColor = (statusLabel) => {
         const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel);
@@ -330,36 +335,71 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
         const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
 
-        if (!isAdmin || !currentConfig || currentConfig.allowTransitionTo.length === 0) {
-            return null; // Pas de transition possible ou pas admin
+        // Un conseiller peut avancer, un admin aussi (mais l'admin a d'autres options)
+        if (!currentConfig || currentConfig.allowTransitionTo.length === 0) {
+            return null;
         }
 
         // Pour l'instant, on prend le premier statut dans allowTransitionTo, comme dans votre logique originale.
-        // Si vous voulez une sélection de plusieurs statuts, il faudrait une modale ou un autre UI.
         const nextStatusKey = currentConfig.allowTransitionTo[0];
         const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey];
 
+        // Ne pas proposer l'annulation comme "prochain statut" ici si un bouton d'annulation existe déjà
         if (!nextStatusConfig || nextStatusConfig.key === 'CANCELLED') {
-             // Ne pas proposer l'annulation comme "prochain statut" ici, car il y a un bouton spécifique.
-             // Ou si le prochain statut est un statut terminal sans suite (comme Annulé ou Retiré si on voulait l'inclure ici)
              return null;
         }
-
-
+        
         const nextStatusLabel = nextStatusConfig.label;
         const ButtonIcon = nextStatusConfig.icon;
         // Extrait la couleur de base et construit une version foncée pour le hover
-        const buttonColorBase = nextStatusConfig.colorClass.split('-')[0] + '-' + nextStatusConfig.colorClass.split('-')[1];
+        const buttonColorBase = nextStatusConfig.colorClass.replace('bg-', 'bg-');
         const buttonColorHover = buttonColorBase.replace(/\d+$/, num => parseInt(num, 10) + 100); // Ex: bg-green-500 -> bg-green-600
 
 
         return (
             <button
                 onClick={() => onUpdateStatus(order.id, nextStatusLabel)} // Passez le label du nouveau statut
-                className={`flex-1 ${nextStatusConfig.colorClass.replace('bg-', 'bg-')} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
+                className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
             >
                 <ButtonIcon size={18} /> Marquer "{nextStatusLabel}"
             </button>
+        );
+    };
+
+    // Boutons de retour de statut pour l'admin
+    const getRevertStatusButtons = (currentStatusLabel) => {
+        if (!isAdmin) return null;
+
+        const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
+        const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
+
+        if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) {
+            return null;
+        }
+
+        return (
+            <div className="relative group">
+                <button
+                    className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                    <RefreshCcw size={18} /> Revenir à...
+                </button>
+                <div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                    {currentConfig.allowTransitionFrom.map(prevStatusKey => {
+                        const prevStatusConfig = ORDER_STATUSES_CONFIG[prevStatusKey];
+                        if (!prevStatusConfig) return null;
+                        return (
+                            <button
+                                key={prevStatusKey}
+                                onClick={() => onRevertStatus(order.id, prevStatusConfig.label)}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 rounded-lg flex items-center gap-2"
+                            >
+                                <prevStatusConfig.icon size={16} /> {prevStatusConfig.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
         );
     };
 
@@ -454,6 +494,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         </button>
                     </>
                 )}
+                {getRevertStatusButtons(order.currentStatus)} {/* Nouveau bouton pour les admins */}
                 <button
                     onClick={() => onShowHistory(order)}
                     className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
@@ -504,7 +545,7 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
     );
 };
 
-// Composant de modale de confirmation pour les actions critiques
+// Composant de modale de confirmation pour les actions critiques (Admin)
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
         <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up">
@@ -519,6 +560,24 @@ const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confir
         </div>
     </div>
 );
+
+// Nouvelle modale de confirmation pour les conseillers
+const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler' }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
+        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up">
+            <div className="text-center">
+                <Info className="mx-auto h-12 w-12 text-blue-400" />
+                <h3 className="mt-4 text-xl font-medium text-white">{message}</h3>
+                <p className="text-gray-400 text-sm mt-2">Le changement d'étape est définitif. En cas de besoin, merci de contacter un administrateur.</p>
+            </div>
+            <div className="mt-6 flex justify-center gap-4">
+                <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">{cancelText}</button>
+                <button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors`}>{confirmText}</button>
+            </div>
+        </div>
+    </div>
+);
+
 
 // Composant de formulaire de connexion
 const LoginForm = ({ onLogin, error, onClose }) => {
@@ -780,6 +839,10 @@ export default function App() {
 
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [orderToDeleteId, setOrderToDeleteId] = useState(null);
+    
+    // Nouveaux états pour la confirmation conseiller
+    const [showConfirmAdvisorChange, setShowConfirmAdvisorChange] = useState(false);
+    const [orderToUpdateStatusAdvisor, setOrderToUpdateStatusAdvisor] = useState(null); // { id, newStatusLabel }
 
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
@@ -1012,10 +1075,11 @@ export default function App() {
         }
     }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
 
-    const handleUpdateOrderStatus = useCallback(async (orderId, newStatusLabel) => { // Renommé en newStatusLabel
-        if (!db || !currentUser || !isAdmin) {
-            setDbError("Accès non autorisé pour cette action.");
-            showToast("Accès non autorisé.", 'error');
+    // Fonction de mise à jour de statut (appelée par les conseillers et admins)
+    const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => {
+        if (!db || !currentUser) {
+            setDbError("Vous devez être connecté pour cette action.");
+            showToast("Erreur: Vous devez être connecté.", 'error');
             return;
         }
         setIsSaving(true);
@@ -1024,7 +1088,7 @@ export default function App() {
         const now = new Date().toISOString();
 
         try {
-            let updateData = { currentStatus: newStatusLabel }; // Utilisation du label directement
+            let updateData = { currentStatus: newStatusLabel };
             let actionText = '';
 
             const newStatusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === newStatusLabel);
@@ -1036,24 +1100,33 @@ export default function App() {
                 return;
             }
 
-            switch (newStatusConfig.key) { // Utilisation de la clé pour la logique
+            switch (newStatusConfig.key) {
                 case 'RECEIVED_IN_STORE':
                     updateData.receivedBy = userInfo;
                     updateData.receptionDate = now;
-                    actionText = "Commande reçue et validée";
+                    actionText = isRevert ? `Retour au statut: ${newStatusLabel} (Correction)` : "Commande reçue et validée";
                     break;
                 case 'CLIENT_NOTIFIED':
                     updateData.notifiedBy = userInfo;
                     updateData.notificationDate = now;
-                    actionText = "Client prévenu ou averti";
+                    actionText = isRevert ? `Retour au statut: ${newStatusLabel} (Correction)` : "Client prévenu ou averti";
                     break;
                 case 'PICKED_UP':
                     updateData.pickedUpBy = userInfo;
                     updateData.pickedUpDate = now;
-                    actionText = "Client a retiré son colis";
+                    actionText = isRevert ? `Retour au statut: ${newStatusLabel} (Correction)` : "Client a retiré son colis";
                     break;
-                case 'CANCELLED': // C'est maintenant géré par handleConfirmCancel, mais pour la cohérence
-                    actionText = "Commande annulée";
+                case 'ORDERED': // Pour les retours à "Commandé"
+                    updateData.receivedBy = null; // Réinitialise les étapes suivantes
+                    updateData.receptionDate = null;
+                    updateData.notifiedBy = null;
+                    updateData.notificationDate = null;
+                    updateData.pickedUpBy = null;
+                    updateData.pickedUpDate = null;
+                    actionText = `Retour au statut: ${newStatusLabel} (Correction)`;
+                    break;
+                case 'CANCELLED': // C'est normalement géré par handleConfirmCancel, mais pour la complétude
+                    actionText = isRevert ? `Retour au statut: ${newStatusLabel} (Correction)` : "Commande annulée";
                     break;
                 default:
                     actionText = `Statut mis à jour: ${newStatusLabel}`;
@@ -1076,8 +1149,40 @@ export default function App() {
         } finally {
             setIsSaving(false);
         }
-    }, [db, currentUser, isAdmin, orders, getCurrentUserInfo, showToast]);
+    }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
 
+    // Fonction appelée par OrderCard pour la progression standard du statut
+    const handleUpdateStatus = useCallback((orderId, newStatusLabel) => {
+        // Si c'est un conseiller, afficher la modale de confirmation
+        if (!isAdmin) {
+            setOrderToUpdateStatusAdvisor({ id: orderId, newStatusLabel: newStatusLabel });
+            setShowConfirmAdvisorChange(true);
+        } else {
+            // Si c'est un admin, pas de confirmation spéciale
+            updateOrderStatus(orderId, newStatusLabel);
+        }
+    }, [isAdmin, updateOrderStatus]);
+
+    // Fonction de confirmation pour les conseillers
+    const confirmAdvisorUpdateStatus = useCallback(() => {
+        if (orderToUpdateStatusAdvisor) {
+            updateOrderStatus(orderToUpdateStatusAdvisor.id, orderToUpdateStatusAdvisor.newStatusLabel);
+        }
+        setShowConfirmAdvisorChange(false);
+        setOrderToUpdateStatusAdvisor(null);
+    }, [orderToUpdateStatusAdvisor, updateOrderStatus]);
+
+
+    // Nouvelle fonction pour permettre à l'admin de revenir en arrière
+    const handleRevertOrderStatus = useCallback(async (orderId, targetStatusLabel) => {
+        if (!db || !currentUser || !isAdmin) {
+            setDbError("Accès non autorisé pour cette action de retour en arrière.");
+            showToast("Accès non autorisé.", 'error');
+            return;
+        }
+        // Pas de confirmation spéciale pour l'admin ici, il est censé savoir ce qu'il fait
+        await updateOrderStatus(orderId, targetStatusLabel, true); // Passer isRevert = true
+    }, [db, currentUser, isAdmin, updateOrderStatus, showToast]);
 
     const handleConfirmCancel = useCallback(async () => {
         if (!db || !currentUser || !isAdmin || !orderToCancelId) {
@@ -1227,6 +1332,13 @@ export default function App() {
                     confirmColor="bg-red-600"
                 />
             )}
+            {showConfirmAdvisorChange && orderToUpdateStatusAdvisor && (
+                <ConfirmationModalAdvisor
+                    message={`Confirmez-vous le passage au statut "${orderToUpdateStatusAdvisor.newStatusLabel}" ?`}
+                    onConfirm={confirmAdvisorUpdateStatus}
+                    onCancel={() => { setShowConfirmAdvisorChange(false); setOrderToUpdateStatusAdvisor(null); }}
+                />
+            )}
             {showOrderHistory && selectedOrderForHistory && (
                 <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} advisorsMap={advisorsMap} />
             )}
@@ -1330,7 +1442,7 @@ export default function App() {
                             >
                                 <option value="All">Tous les statuts</option>
                                 {ORDER_STATUSES_ARRAY.map(status => (
-                                    <option key={status.key} value={status.label}> {/* Utilisez status.label ici */}
+                                    <option key={status.key} value={status.label}>
                                         {status.label}
                                     </option>
                                 ))}
@@ -1398,12 +1510,13 @@ export default function App() {
                             <OrderCard
                                 key={order.id}
                                 order={order}
-                                onUpdateStatus={handleUpdateOrderStatus}
+                                onUpdateStatus={handleUpdateStatus} // Utilisation de la nouvelle fonction pour la confirmation conseiller
                                 onEdit={handleEditOrder}
                                 onDelete={(id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }}
                                 isAdmin={isAdmin}
                                 onShowHistory={handleShowOrderHistory}
                                 advisorsMap={advisorsMap}
+                                onRevertStatus={handleRevertOrderStatus} // Nouvelle prop pour les admins
                             />
                         ))}
                     </div>
