@@ -3,8 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check
-} from 'lucide-react'; // Removed Slash if not used elsewhere
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown
+} from 'lucide-react';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES
@@ -67,6 +67,21 @@ const AnimationStyles = () => (
       .group:hover .tooltip {
         opacity: 1;
         visibility: visible;
+      }
+      /* Custom scrollbar for modals */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #374151; /* gray-700 */
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #60A5FA; /* blue-400 */
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #3B82F6; /* blue-500 */
       }
     `}</style>
 );
@@ -425,12 +440,12 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
                 <h2 className="text-2xl font-bold text-white mb-6 text-center">Historique de la commande: {order.items?.[0]?.itemName || 'Article(s)'}</h2>
-                <div className="space-y-4 pr-2 custom-scrollbar">
+                <div className="space-y-4">
                     {order.history && order.history.length > 0 ? (
                         order.history.map((event, index) => (
                             <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4">
@@ -615,7 +630,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
              } finally {
                  setIsSaving(false);
              }
-         }
+           }
     };
 
     if (!isAdmin) {
@@ -631,7 +646,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer la gestion des conseillers" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -1192,7 +1207,7 @@ export default function App() {
             <div className="max-w-7xl mx-auto">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1> {/* Changed title here */}
+                        <h1 className="text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1>
                         <p className="text-gray-400 mt-1">
                             Suivez vos commandes d'accessoires en temps réel.
                         </p>
@@ -1201,12 +1216,17 @@ export default function App() {
                         {currentUser && (
                             <div className="flex items-center gap-2 text-blue-300">
                                 <User size={18} />
-                                <span>Connecté en tant que: {currentUser.email === ADMIN_EMAIL ? 'Admin' : getCurrentUserInfo()?.name || 'Conseiller'}</span>
+                                <span className="font-medium">Connecté :</span>
+                                <span className="bg-gray-700/50 px-3 py-1 rounded-full text-sm font-semibold text-white">
+                                    {currentUser.email === ADMIN_EMAIL ? 'Admin principal' : getCurrentUserInfo()?.name || 'Conseiller'}
+                                </span>
                             </div>
                         )}
                         {isAdmin ? (
                             <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2 text-blue-300"> <UserCheck size={18} /> <span>Mode Admin</span></div>
+                                <span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-sm font-bold text-white shadow-md">
+                                    <UserCheck size={16} /> Mode Admin
+                                </span>
                                 <button
                                     onClick={() => { setShowOrderForm(true); setEditingOrder(null); }}
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
@@ -1219,7 +1239,11 @@ export default function App() {
                                 >
                                     <UserPlus size={20} /> Gérer Conseillers
                                 </button>
-                                <button onClick={handleLogout} title="Se déconnecter" aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors"><LogOut size={22} /></button>
+                                <Tooltip text="Se déconnecter">
+                                    <button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700">
+                                        <LogOut size={22} />
+                                    </button>
+                                </Tooltip>
                             </div>
                         ) : (
                             <button onClick={() => setShowLogin(true)} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
@@ -1246,46 +1270,55 @@ export default function App() {
                         </div>
 
                         {/* Status Filter Dropdown */}
-                        <select
-                            value={selectedStatusFilter}
-                            onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                            className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        >
-                            <option value="All">Tous les statuts</option>
-                            {Object.values(ORDER_STATUSES).map(status => (
-                                <option key={status.name} value={status.name}>
-                                    {status.name}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <select
+                                value={selectedStatusFilter}
+                                onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer"
+                            >
+                                <option value="All">Tous les statuts</option>
+                                {Object.values(ORDER_STATUSES).map(status => (
+                                    <option key={status.name} value={status.name}>
+                                        {status.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
 
                         {/* Advisor Filter Dropdown */}
-                        <select
-                            value={selectedAdvisorFilter}
-                            onChange={(e) => setSelectedAdvisorFilter(e.target.value)}
-                            className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        >
-                            <option value="All">Tous les conseillers</option>
-                            {advisors.map(advisor => (
-                                <option key={advisor.email} value={advisor.email}>
-                                    {advisor.name}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <select
+                                value={selectedAdvisorFilter}
+                                onChange={(e) => setSelectedAdvisorFilter(e.target.value)}
+                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer"
+                            >
+                                <option value="All">Tous les conseillers</option>
+                                {advisors.map(advisor => (
+                                    <option key={advisor.email} value={advisor.email}>
+                                        {advisor.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
 
                         {/* Sort Order Dropdown */}
-                        <select
-                            value={sortOrder}
-                            onChange={(e) => setSortOrder(e.target.value)}
-                            className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        >
-                            <option value="orderDateDesc">Date (la plus récente)</option>
-                            <option value="orderDateAsc">Date (la plus ancienne)</option>
-                            <option value="clientNameAsc">Client (A-Z)</option>
-                            <option value="clientNameDesc">Client (Z-A)</option>
-                            <option value="itemNameAsc">Accessoire (A-Z)</option>
-                            <option value="itemNameDesc">Accessoire (Z-A)</option>
-                        </select>
+                        <div className="relative">
+                            <select
+                                value={sortOrder}
+                                onChange={(e) => setSortOrder(e.target.value)}
+                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer"
+                            >
+                                <option value="orderDateDesc">Date (la plus récente)</option>
+                                <option value="orderDateAsc">Date (la plus ancienne)</option>
+                                <option value="clientNameAsc">Client (A-Z)</option>
+                                <option value="clientNameDesc">Client (Z-A)</option>
+                                <option value="itemNameAsc">Accessoire (A-Z)</option>
+                                <option value="itemNameDesc">Accessoire (Z-A)</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
                     </div>
                 )}
 
