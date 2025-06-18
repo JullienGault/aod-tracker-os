@@ -14,7 +14,6 @@ import {
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
 // =================================================================
 
-// Configuration Firebase avec votre clé API rétablie
 const firebaseConfig = {
     apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
     authDomain: "aod-tracker-os.firebaseapp.com",
@@ -84,8 +83,28 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     const [isOpen, setIsOpen] = useState(false);
     const getStatusColor = (statusLabel) => { const config = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel); return config?.colorClass || 'bg-gray-500'; };
     const getDisplayName = (email) => advisorsMap[email?.toLowerCase()]?.name || email || 'N/A';
-    const getNextStatusButton = (currentStatusLabel) => { /* ... Le code de ce bouton reste inchangé ... */ return null; };
-    const getRevertStatusButtons = (currentStatusLabel) => { /* ... Le code de ce bouton reste inchangé ... */ return null; };
+    
+    const getNextStatusButton = (currentStatusLabel) => {
+        const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
+        const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
+        if (!currentConfig || currentConfig.allowTransitionTo.length === 0) return null;
+        const nextStatusKey = currentConfig.allowTransitionTo.find(key => key !== 'CANCELLED');
+        if (!nextStatusKey) return null;
+        const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey];
+        const ButtonIcon = nextStatusConfig.icon;
+        const buttonColorBase = nextStatusConfig.colorClass;
+        const buttonColorHover = buttonColorBase.replace('500', '600').replace('600', '700');
+        return ( <button onClick={() => onUpdateStatus(order.id, nextStatusConfig.label)} className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}><ButtonIcon size={18} /> Marquer "{nextStatusConfig.label}"</button> );
+    };
+
+    const getRevertStatusButtons = (currentStatusLabel) => {
+        if (!isAdmin) return null;
+        const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
+        const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
+        if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) return null;
+        return ( <div className="relative group"><button className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><RefreshCcw size={18} /> Revenir à...</button><div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">{currentConfig.allowTransitionFrom.map(prevStatusKey => { const prevStatusConfig = ORDER_STATUSES_CONFIG[prevStatusKey]; if (!prevStatusConfig) return null; return ( <button key={prevStatusKey} onClick={() => onRevertStatus(order.id, prevStatusConfig.label, true)} className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 rounded-lg flex items-center gap-2"><prevStatusConfig.icon size={16} /> {prevStatusConfig.label}</button> ); })}</div></div> );
+    };
+
     const itemsSummary = order.items?.length > 0 ? `${order.items[0].itemName}${order.items.length > 1 ? ` (+ ${order.items.length - 1} autre${order.items.length > 2 ? 's' : ''})` : ''}` : "Aucun article";
 
     return (
@@ -110,13 +129,18 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         {order.pickedUpDate && (<p className="flex items-center gap-2"><UserCheck size={16} className="text-purple-400" />Retiré par <span className="font-medium text-white">{getDisplayName(order.pickedUpBy?.email)}</span><span className="ml-auto">{new Date(order.pickedUpDate).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', year: 'numeric' })}</span></p>)}
                     </div>
                     <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
-                        {/* Les boutons d'action (Modifier, Supprimer, etc.) iraient ici */}
+                        {getNextStatusButton(order.currentStatus)}
+                        {getRevertStatusButtons(order.currentStatus)}
+                        <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
+                        {isAdmin && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
+                        {isAdmin && <button onClick={() => onDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}
                     </div>
                 </div>
             </div>
         </div>
     );
 };
+
 
 // =================================================================
 // COMPOSANT PRINCIPAL : App
@@ -177,18 +201,26 @@ export default function App() {
             setAuthReady(true);
         }
     }, [advisorsMap]);
-    
+
     const showToast = useCallback((message, type = 'success') => { /* ... */ }, []);
     const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; const userProfile = advisorsMap[currentUser.email?.toLowerCase()]; const displayName = userProfile?.name || currentUser.email; return { uid: currentUser.uid, email: currentUser.email, name: displayName, role: userProfile?.role || (currentUser.email === ADMIN_EMAIL ? 'admin' : 'unknown') }; }, [currentUser, advisorsMap]);
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Identifiants incorrects."); } }, [auth]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth); }, [auth]);
+    const handleSaveOrder = useCallback(async (orderData) => { /* ... */ }, [db, currentUser, editingOrder]);
+    const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => { /* ... */ }, [db, currentUser, orders]);
+    const handleUpdateStatus = useCallback((orderId, newStatusLabel) => { /* ... */ }, [getCurrentUserInfo, updateOrderStatus]);
+    const confirmAdvisorUpdateStatus = useCallback(() => { /* ... */ }, [orderToUpdateStatusAdvisor, updateOrderStatus]);
+    const handleDeleteOrder = useCallback((id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }, []);
+    const handleConfirmDelete = useCallback(async () => { /* ... */ }, [db, isAdmin, orderToDeleteId]);
+    const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
+    const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
+
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
         if (selectedStatusFilter !== 'All') { currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter); }
         if (searchTerm.trim()) { const lower = searchTerm.toLowerCase(); currentOrders = currentOrders.filter(o => o.clientFirstName.toLowerCase().includes(lower) || o.clientLastName.toLowerCase().includes(lower) || o.items.some(i => i.itemName.toLowerCase().includes(lower))); }
         return currentOrders;
     }, [orders, selectedStatusFilter, searchTerm]);
-    // ... Autres fonctions de gestion (handleSaveOrder, etc.) ...
 
     if (!authReady) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" /></div> ); }
     if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} onClose={() => setShowLogin(false)} /></div> ); }
@@ -198,6 +230,7 @@ export default function App() {
             <AnimationStyles />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} advisorsMap={advisorsMap} /> )}
+            {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
             {/* ... Autres Modals ... */}
 
             <div className="max-w-4xl mx-auto px-2 sm:px-4 lg:px-6"> 
@@ -239,7 +272,17 @@ export default function App() {
                 <div className="grid grid-cols-1 gap-6 animate-fade-in">
                     {isLoading ? <div className="text-center py-20"><p>Chargement des commandes...</p></div> : filteredAndSortedOrders.length > 0 ? (
                         filteredAndSortedOrders.map((order) => (
-                            <OrderCard key={order.id} order={order} onShowHistory={() => setShowOrderHistory(true)} advisorsMap={advisorsMap} /* autres props */ />
+                            <OrderCard 
+                                key={order.id} 
+                                order={order} 
+                                onUpdateStatus={updateOrderStatus}
+                                onEdit={handleEditOrder}
+                                onDelete={handleDeleteOrder}
+                                isAdmin={isAdmin}
+                                onShowHistory={handleShowOrderHistory} 
+                                advisorsMap={advisorsMap}
+                                onRevertStatus={updateOrderStatus}
+                             />
                         ))
                     ) : (
                         <div className="text-center py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl font-semibold">Aucune commande à afficher.</h2></div>
