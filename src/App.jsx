@@ -566,8 +566,7 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
 
     // Créer une copie du tableau d'historique et inverser son ordre pour afficher le plus récent en premier
     const sortedHistory = useMemo(() => {
-        // S'assurer que order.history existe et est un tableau, puis le copier et l'inverser
-        return order.history && Array.isArray(order.history) ? [...order.history].reverse() : [];
+        return order.history ? [...order.history].reverse() : [];
     }, [order.history]);
 
     return (
@@ -630,8 +629,8 @@ const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 
                 <button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors`}>{confirmText}</button>
             </div>
         </div>
-    );
-};
+    </div>
+);
 
 
 // Composant de formulaire de connexion
