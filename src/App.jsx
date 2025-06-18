@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
 // Importations Firebase
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs, FieldValue } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 // Importations des icônes Lucide React
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw
 } from 'lucide-react';
 
 // =================================================================
@@ -37,6 +37,15 @@ const ORDER_STATUSES_CONFIG = {
 
 const ORDER_STATUSES_ARRAY = Object.keys(ORDER_STATUSES_CONFIG).map(key => ({ key, ...ORDER_STATUSES_CONFIG[key] })).sort((a, b) => a.order - b.order);
 
+// Fonction pour extraire et capitaliser le prénom depuis l'email
+const getUserDisplayName = (email) => {
+    if (!email) return 'N/A';
+    if (email === ADMIN_EMAIL) return 'Jullien';
+    const namePart = email.split('@')[0].split('.')[0];
+    return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+};
+
+
 // =================================================================
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
@@ -48,23 +57,18 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => { const [clien
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><Info className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3><p className="text-gray-400 text-sm mt-2">Le changement d'étape est définitif. En cas de besoin, merci de contacter un administrateur.</p></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const LoginForm = ({ onLogin, error, onClose }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 relative animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer la fenêtre de connexion" className="absolute top-2 right-2 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion</h2><form onSubmit={handleSubmit} className="space-y-6"><div><input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><input type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && <p className="text-red-400 text-sm text-center">{error}</p>}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div></div> ); };
-const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => { const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [role, setRole] = useState('counselor'); const [editAdvisorId, setEditAdvisorId] = useState(null); const [formError, setFormError] = useState(null); const [isSaving, setIsSaving] = useState(false); const showToast = useCallback((message, type) => { console.log(`Toast (${type}): ${message}`); }, []); const handleAddUpdateAdvisor = async (e) => { e.preventDefault(); setFormError(null); if (!name.trim() || !email.trim() || (!editAdvisorId && !password.trim())) { setFormError("Le nom, l'email et le mot de passe (pour un nouvel utilisateur) du conseiller sont obligatoires."); return; } if (!email.includes('@')) { setFormError("L'email n'est pas valide."); return; } setIsSaving(true); try { if (!editAdvisorId) { const createdUserCredential = await createUserWithEmailAndPassword(auth, email, password); await onSaveAdvisor({ id: email.toLowerCase(), name: name.trim(), email: email.trim().toLowerCase(), role: role, }); await auth.signOut(); setFormError(null); setName(''); setEmail(''); setPassword(''); setRole('counselor'); setEditAdvisorId(null); showToast("Conseiller créé. Veuillez vous reconnecter en tant qu'administrateur.", 'success'); onClose(); } else { await onSaveAdvisor({ id: editAdvisorId, name: name.trim(), email: email.trim().toLowerCase(), role: role, }); setFormError(null); setName(''); setEmail(''); setPassword(''); setRole('counselor'); setEditAdvisorId(null); showToast("Conseiller modifié avec succès !", 'success'); } } catch (error) { console.error("Error adding/updating advisor:", error); let errorMessage = "Échec de l'enregistrement du conseiller."; if (error.code === 'auth/email-already-in-use') { errorMessage = "Cet email est déjà utilisé pour un autre compte."; } else if (error.code === 'auth/weak-password') { errorMessage = "Le mot de passe est trop faible (minimum 6 caractères)."; } else if (error.message) { errorMessage = error.message; } setFormError(`Erreur : ${errorMessage}`); showToast(`Échec de l'opération : ${errorMessage}`, 'error'); if (!editAdvisorId && auth.currentUser && auth.currentUser.email === email.trim().toLowerCase()) { await auth.signOut().catch(e => console.error("Error signing out after partial creation:", e)); } } finally { setIsSaving(false); } }; const handleEditClick = (advisor) => { setName(advisor.name); setEmail(advisor.email); setRole(advisor.role || 'counselor'); setPassword(''); setEditAdvisorId(advisor.id); }; const handleCancelEdit = () => { setName(''); setEmail(''); setPassword(''); setRole('counselor'); setEditAdvisorId(null); setFormError(null); }; const handleDeleteClick = async (advisor) => { if (advisor.email === adminEmail) { setFormError("Vous ne pouvez pas supprimer le compte administrateur principal."); showToast("Impossible de supprimer le compte admin principal.", 'error'); return; } if (window.confirm(`Êtes-vous sûr de vouloir supprimer le conseiller ${advisor.name} (${advisor.email})? Cette action est irréversible et supprime le profil du conseiller. Pour des raisons de sécurité côté client, cela ne supprime PAS le compte d'authentification Firebase associé. Vous devrez le faire manuellement dans la console Firebase Auth.`)) { setIsSaving(true); try { await onDeleteAdvisor(advisor.id); showToast("Conseiller supprimé de la liste. Pensez à supprimer le compte Auth manuellement.", 'success'); } catch (error) { setFormError(`Erreur lors de la suppression: ${error.message}`); showToast("Échec de la suppression du conseiller.", 'error'); } finally { setIsSaving(false); } } }; if (!isAdmin) { return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><p className="text-red-400 text-center">Accès refusé. Seul l'administrateur peut gérer les conseillers.</p><button onClick={onClose} className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg">Fermer</button></div></div> ); } return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer la gestion des conseillers" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Gérer les Conseillers</h2><form onSubmit={handleAddUpdateAdvisor} className="space-y-4 mb-8 p-4 bg-gray-700 rounded-lg"><h3 className="text-xl font-semibold text-white mb-4">{editAdvisorId ? 'Modifier un conseiller' : 'Ajouter un nouveau conseiller'}</h3><div><label htmlFor="advisorName" className="block text-sm font-medium text-gray-300 mb-1">Nom du conseiller *</label><input id="advisorName" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" /></div><div><label htmlFor="advisorEmail" className="block text-sm font-medium text-gray-300 mb-1">Email du conseiller *</label><input id="advisorEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" readOnly={!!editAdvisorId} /></div>{!editAdvisorId && (<div><label htmlFor="advisorPassword" className="block text-sm font-medium text-gray-300 mb-1">Mot de passe (temporaire) *</label><input id="advisorPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" /><p className="text-xs text-gray-400 mt-1">Min. 6 caractères. Le conseiller pourra le changer plus tard.</p></div>)}<div><label htmlFor="advisorRole" className="block text-sm font-medium text-gray-300 mb-1">Rôle *</label><div className="relative"><select id="advisorRole" value={role} onChange={(e) => setRole(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg appearance-none pr-8 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"><option value="counselor">Conseiller</option><option value="admin">Admin</option></select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" /></div></div>{formError && <p className="text-red-400 text-sm">{formError}</p>}<div className="flex flex-col sm:flex-row gap-4"><button type="submit" disabled={isSaving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{isSaving ? 'Enregistrement...' : (editAdvisorId ? 'Mettre à jour' : 'Ajouter')}</button>{editAdvisorId && ( <button type="button" onClick={handleCancelEdit} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 rounded-lg transition-colors">Annuler</button> )}</div></form><div><h3 className="text-xl font-semibold text-white mb-4">Liste des Conseillers</h3>{advisors.length === 0 ? (<p className="text-gray-400 text-center">Aucun conseiller enregistré.</p>) : (<ul className="space-y-3">{advisors.map((advisor) => ( <li key={advisor.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-700/50 p-3 rounded-lg"><div><p className="font-medium text-white">{advisor.name}</p><p className="text-sm text-gray-400">{advisor.email} (<span className="capitalize">{advisor.role}</span>)</p></div><div className="flex gap-2 mt-2 sm:mt-0"><button onClick={() => handleEditClick(advisor)} className="text-blue-400 hover:text-blue-300 transition-colors"><Edit size={20} /></button><button onClick={() => handleDeleteClick(advisor)} className="text-red-400 hover:text-red-300 transition-colors" disabled={advisor.email === adminEmail}><Trash2 size={20} /></button></div></li> ))}</ul>)}</div></div></div> ); };
-const OrderHistoryModal = ({ order, onClose, advisorsMap }) => { const getDisplayName = (email) => { return advisorsMap[email.toLowerCase()]?.name || email; }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Historique: {order.items?.[0]?.itemName || 'Article(s)'}</h2><div className="space-y-4">{order.history && order.history.length > 0 ? (order.history.slice().reverse().map((event, index) => ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4"><Calendar size={20} className="text-blue-400 flex-shrink-0 sm:mt-1" /><div><p className="text-white font-medium">{event.action}</p><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>{event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}</div></div> ))) : (<p className="text-gray-400 text-center">Aucun historique disponible.</p>)}</div></div></div> ); };
+const OrderHistoryModal = ({ order, onClose }) => { return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Historique: {order.items?.[0]?.itemName || 'Article(s)'}</h2><div className="space-y-4">{order.history && order.history.length > 0 ? (order.history.slice().reverse().map((event, index) => ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4"><Calendar size={20} className="text-blue-400 flex-shrink-0 sm:mt-1" /><div><p className="text-white font-medium">{event.action}</p><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>{event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}</div></div> ))) : (<p className="text-gray-400 text-center">Aucun historique disponible.</p>)}</div></div></div> ); };
 
 
 // =================================================================
-// NOUVEAU COMPOSANT OrderCard AMÉLIORÉ
+// COMPOSANT OrderCard AMÉLIORÉ
 // =================================================================
-const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap, onRevertStatus }) => {
+const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, onRevertStatus }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     const getStatusColor = (statusLabel) => {
         const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel);
         return statusConfig?.colorClass || 'bg-gray-500';
-    };
-
-    const getDisplayName = (email) => {
-        return advisorsMap[email?.toLowerCase()]?.name || email || 'N/A';
     };
 
     const getNextStatusButton = (currentStatusLabel) => {
@@ -119,11 +123,11 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         {order.history && order.history.length > 0 ? (
                             order.history.map((event, index) => (
                                 <p key={index}>
-                                    <span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    <span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                 </p>
                             ))
                         ) : (
-                             <p>Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email)}</span> le {new Date(order.orderDate).toLocaleDateString('fr-FR')}</p>
+                             <p>Commandé par <span className="font-medium text-white">{getUserDisplayName(order.orderedBy?.email)}</span> le {new Date(order.orderDate).toLocaleDateString('fr-FR')}</p>
                         )}
                     </div>
 
@@ -146,7 +150,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 // =================================================================
 export default function App() {
     const [orders, setOrders] = useState([]);
-    const [advisors, setAdvisors] = useState([]);
+    const [allUsers, setAllUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [dbError, setDbError] = useState(null);
@@ -156,7 +160,7 @@ export default function App() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [authReady, setAuthReady] = useState(false);
     const [loginError, setLoginError] = useState(null);
-    const [showLogin, setShowLogin] = useState(false);
+    const [showLogin, setShowLogin] = useState(true);
     const [showOrderForm, setShowOrderForm] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null);
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -165,7 +169,6 @@ export default function App() {
     const [orderToUpdateStatusAdvisor, setOrderToUpdateStatusAdvisor] = useState(null);
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
-    const [showAdvisorManagement, setShowAdvisorManagement] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
@@ -173,8 +176,6 @@ export default function App() {
     const [toast, setToast] = useState(null);
 
     useEffect(() => { document.title = "AOD Tracker OS"; }, []);
-
-    const advisorsMap = useMemo(() => advisors.reduce((acc, advisor) => { acc[advisor.email.toLowerCase()] = advisor; return acc; }, {}), [advisors]);
 
     useEffect(() => {
         try {
@@ -186,8 +187,8 @@ export default function App() {
             const unsubscribe = onAuthStateChanged(authInstance, (user) => {
                 if (user) {
                     setCurrentUser(user);
-                    const userProfile = advisorsMap[user.email?.toLowerCase()];
-                    setIsAdmin(user.email === ADMIN_EMAIL || userProfile?.role === 'admin');
+                    setIsAdmin(user.email === ADMIN_EMAIL);
+                    setShowLogin(false);
                 } else {
                     setCurrentUser(null);
                     setIsAdmin(false);
@@ -201,25 +202,53 @@ export default function App() {
             setDbError("Impossible d'initialiser Firebase.");
             setAuthReady(true);
         }
-    }, [advisorsMap]);
+    }, []);
 
     const showToast = useCallback((message, type = 'success') => { setToast({ message, type }); setTimeout(() => setToast(null), 3000); }, []);
-
+    
     useEffect(() => {
-        if (!authReady || !db) return;
-        const advisorsColRef = collection(db, `artifacts/${APP_ID}/public/data/advisors`);
-        const unsubscribe = onSnapshot(advisorsColRef, (snapshot) => { setAdvisors(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); }, (err) => { console.error("Error fetching advisors:", err); setDbError("Impossible de charger les conseillers."); });
-        return () => unsubscribe();
-    }, [authReady, db]);
-
-    useEffect(() => {
-        if (!authReady || !db || !currentUser) { if(authReady) setIsLoading(false); return; }
+        if (!authReady || !db || !currentUser) {
+            if(authReady) setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         const ordersCollectionRef = collection(db, `artifacts/${APP_ID}/public/data/orders`);
         const q = query(ordersCollectionRef, orderBy("orderDate", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => { setOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); setIsLoading(false); setDbError(null); }, (err) => { console.error("Error fetching orders:", err); setDbError("Impossible de charger les commandes."); setIsLoading(false); });
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            setOrders(fetchedOrders);
+            
+            // Créer une liste unique d'utilisateurs à partir des commandes
+            const usersFromOrders = fetchedOrders.reduce((acc, order) => {
+                if (order.orderedBy?.email) {
+                    acc[order.orderedBy.email] = {
+                        email: order.orderedBy.email,
+                        name: getUserDisplayName(order.orderedBy.email)
+                    };
+                }
+                order.history?.forEach(h => {
+                    if (h.by?.email) {
+                       acc[h.by.email] = {
+                           email: h.by.email,
+                           name: getUserDisplayName(h.by.email)
+                       };
+                    }
+                });
+                return acc;
+            }, {});
+
+            setAllUsers(Object.values(usersFromOrders));
+
+            setIsLoading(false);
+            setDbError(null);
+        }, (err) => {
+            console.error("Error fetching orders:", err);
+            setDbError("Impossible de charger les commandes.");
+            setIsLoading(false);
+        });
         return () => unsubscribe();
     }, [authReady, db, currentUser]);
+
 
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
@@ -232,20 +261,28 @@ export default function App() {
 
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service d'authentification non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
-    const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; const userProfile = advisorsMap[currentUser.email?.toLowerCase()]; const displayName = userProfile?.name || currentUser.email; return { uid: currentUser.uid, email: currentUser.email, name: displayName, role: userProfile?.role || (currentUser.email === ADMIN_EMAIL ? 'admin' : 'unknown') }; }, [currentUser, advisorsMap]);
+    
+    const getCurrentUserInfo = useCallback(() => {
+        if (!currentUser) return null;
+        return {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            name: getUserDisplayName(currentUser.email),
+            role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'counselor'
+        };
+    }, [currentUser]);
+
     const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) { showToast("Vous devez être connecté.", 'error'); return; } setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), { ...orderData, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] }); showToast("Commande modifiée !", 'success'); } else { await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), { ...orderData, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label, history: [{ timestamp: now, action: `Commande ${ORDER_STATUSES_CONFIG.ORDERED.label.toLowerCase()}`, by: userInfo }] }); showToast("Commande ajoutée !", 'success'); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { showToast("Échec de l'enregistrement.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
-    const handleUpdateStatus = useCallback((orderId, newStatusLabel) => { const user = getCurrentUserInfo(); if(user?.role === 'admin') { updateOrderStatus(orderId, newStatusLabel); } else { setOrderToUpdateStatusAdvisor({id: orderId, newStatusLabel}); setShowConfirmAdvisorChange(true); } }, [getCurrentUserInfo]);
-    const confirmAdvisorUpdateStatus = useCallback(() => { if(orderToUpdateStatusAdvisor) { updateOrderStatus(orderToUpdateStatusAdvisor.id, orderToUpdateStatusAdvisor.newStatusLabel); } setShowConfirmAdvisorChange(false); setOrderToUpdateStatusAdvisor(null); }, [orderToUpdateStatusAdvisor]);
-    const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => { if (!db || !currentUser) return; setIsSaving(true); const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { let updateData = { currentStatus: newStatusLabel }; const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : `Statut mis à jour: ${newStatusLabel}`; await updateDoc(orderRef, {...updateData, history: [...(orders.find(o=>o.id === orderId)?.history || []), {timestamp: now, action: historyAction, by: userInfo}]}); showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success'); } catch (e) { showToast("Échec de la mise à jour.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
+    const handleUpdateStatus = useCallback((orderId, newStatusLabel) => { const user = getCurrentUserInfo(); if(user?.role === 'admin') { updateOrderStatus(orderId, newStatusLabel); } else { setOrderToUpdateStatusAdvisor({id: orderId, newStatusLabel}); setShowConfirmAdvisorChange(true); } }, [getCurrentUserInfo, updateOrderStatus]);
+    const confirmAdvisorUpdateStatus = useCallback(() => { if(orderToUpdateStatusAdvisor) { updateOrderStatus(orderToUpdateStatusAdvisor.id, orderToUpdateStatusAdvisor.newStatusLabel); } setShowConfirmAdvisorChange(false); setOrderToUpdateStatusAdvisor(null); }, [orderToUpdateStatusAdvisor, updateOrderStatus]);
+    const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => { if (!db || !currentUser) return; setIsSaving(true); const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) throw new Error("Commande non trouvée"); let updateData = { currentStatus: newStatusLabel }; const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : `Statut mis à jour: ${newStatusLabel}`; await updateDoc(orderRef, {...updateData, history: [...(orderToUpdate.history || []), {timestamp: now, action: historyAction, by: userInfo}]}); showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success'); } catch (e) { console.error(e); showToast("Échec de la mise à jour.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
     const handleDeleteOrder = useCallback((id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }, []);
     const handleConfirmDelete = useCallback(async () => { if (!db || !isAdmin || !orderToDeleteId) { showToast("Action non autorisée.", 'error'); return; } setIsSaving(true); try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId)); showToast("Commande supprimée.", 'success'); } catch (e) { showToast("Échec de la suppression.", 'error'); } finally { setShowConfirmDelete(false); setOrderToDeleteId(null); setIsSaving(false); } }, [db, isAdmin, orderToDeleteId, showToast]);
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
     const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
-    const handleSaveAdvisor = useCallback(async (advisorData) => { if (!db || !isAdmin) { throw new Error("Action non autorisée."); } setIsSaving(true); try { const docRef = doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorData.email.toLowerCase()); await setDoc(docRef, { name: advisorData.name, email: advisorData.email.toLowerCase(), role: advisorData.role }, { merge: true }); showToast("Conseiller enregistré !", 'success'); } catch (e) { showToast("Échec de l'enregistrement.", 'error'); throw e; } finally { setIsSaving(false); } }, [db, isAdmin, showToast]);
-    const handleDeleteAdvisor = useCallback(async (advisorId) => { if (!db || !isAdmin) { showToast("Action non autorisée.", 'error'); return; } setIsSaving(true); try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorId)); showToast("Conseiller supprimé.", 'success'); } catch (e) { showToast("Échec de la suppression.", 'error'); } finally { setIsSaving(false); } }, [db, isAdmin, showToast]);
     
     if (!authReady) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /></div> ); }
-    if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} onClose={() => setShowLogin(false)} /></div> ); }
+    if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} onClose={() => { if(currentUser) setShowLogin(false); }} /></div> ); }
 
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
@@ -253,8 +290,7 @@ export default function App() {
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {showConfirmDelete && ( <ConfirmationModal message="Voulez-vous vraiment supprimer cette commande ?" onConfirm={handleConfirmDelete} onCancel={() => setShowConfirmDelete(false)} /> )}
             {showConfirmAdvisorChange && ( <ConfirmationModalAdvisor message={`Confirmer le passage au statut "${orderToUpdateStatusAdvisor?.newStatusLabel}" ?`} onConfirm={confirmAdvisorUpdateStatus} onCancel={() => setShowConfirmAdvisorChange(false)} /> )}
-            {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} advisorsMap={advisorsMap} /> )}
-            {showAdvisorManagement && ( <AdvisorManagementForm db={db} auth={auth} appId={APP_ID} advisors={advisors} onSaveAdvisor={handleSaveAdvisor} onDeleteAdvisor={handleDeleteAdvisor} onClose={() => setShowAdvisorManagement(false)} isAdmin={isAdmin} adminEmail={ADMIN_EMAIL} /> )}
+            {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
 
             {/* Conteneur principal avec largeur maximale et centrage */}
@@ -273,7 +309,6 @@ export default function App() {
                         {isAdmin ? (
                             <div className="flex flex-wrap gap-2 sm:gap-4">
                                 <span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold text-white shadow-md"><UserCheck size={16} /> Mode Admin</span>
-                                <button onClick={() => setShowAdvisorManagement(true)} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base flex-1 sm:flex-none"><UserPlus size={20} /> Gérer</button>
                                 <Tooltip text="Se déconnecter"><button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip>
                             </div>
                         ) : (
@@ -288,7 +323,7 @@ export default function App() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
                     </div>
                     <div className="relative w-full sm:w-auto"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les statuts</option>{ORDER_STATUSES_ARRAY.map(status => (<option key={status.key} value={status.label}>{status.label}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                    <div className="relative w-full sm:w-auto"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{advisors.map(advisor => (<option key={advisor.email} value={advisor.email}>{advisor.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                    <div className="relative w-full sm:w-auto"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
                 </div>
 
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
@@ -300,7 +335,7 @@ export default function App() {
                 ) : (
                     <div className="grid grid-cols-1 gap-6 animate-fade-in">
                         {filteredAndSortedOrders.map((order) => (
-                            <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} onEdit={handleEditOrder} onDelete={handleDeleteOrder} isAdmin={isAdmin} onShowHistory={handleShowOrderHistory} advisorsMap={advisorsMap} onRevertStatus={updateOrderStatus} />
+                            <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} onEdit={handleEditOrder} onDelete={handleDeleteOrder} isAdmin={isAdmin} onShowHistory={handleShowOrderHistory} onRevertStatus={(orderId, newStatus) => updateOrderStatus(orderId, newStatus, true)} />
                         ))}
                     </div>
                 )}
