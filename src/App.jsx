@@ -74,11 +74,19 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         return statusConfig?.colorClass || 'bg-gray-500';
     };
 
+    // Logique de correspondance améliorée pour être rétrocompatible
+    const findStatusConfigByAction = (action) => {
+        if (!action) return null;
+        // Trouve le statut en cherchant dans la description (nouvelles entrées) ou le label (anciennes entrées)
+        return Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action || s.label === action);
+    };
+
     const getIconForHistoryAction = (action) => {
         if (!action) return History;
         if (action.startsWith('Retour au statut:')) return RefreshCcw;
         if (action === 'Commande modifiée') return Edit;
-        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action);
+        
+        const statusConfig = findStatusConfigByAction(action);
         return statusConfig?.icon || CheckCircle;
     };
 
@@ -86,10 +94,12 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         if (!action) return 'text-gray-400';
         if (action.startsWith('Retour au statut:')) return 'text-gray-400';
         if (action === 'Commande modifiée') return 'text-purple-400';
-        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action);
+        
+        const statusConfig = findStatusConfigByAction(action);
         if (statusConfig && statusConfig.colorClass) {
             return statusConfig.colorClass.replace('bg-', 'text-');
         }
+        
         return 'text-gray-400';
     };
 
@@ -282,11 +292,11 @@ export default function App() {
         }
 
         // 2. Appliquer les autres filtres sur la liste pré-filtrée
-        if (selectedStatusFilter !== 'All') { currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter); }
+        if (selectedStatusFilter !== 'All' && viewMode === 'active') { currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter); }
         if (selectedAdvisorFilter !== 'All') { currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); }
         if (searchTerm.trim()) { const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); currentOrders = currentOrders.filter(order => (order.clientFirstName?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientLastName?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientEmail?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientPhone?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.items?.some(item => item.itemName.toLowerCase().includes(lowerCaseSearchTerm))) || (order.receiptNumber?.toLowerCase().includes(lowerCaseSearchTerm)) ); }
         
-        return currentOrders; // Le tri par date est déjà fait par la requête firestore
+        return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service d'authentification non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
