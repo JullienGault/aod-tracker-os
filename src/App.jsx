@@ -71,6 +71,17 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         return statusConfig?.colorClass || 'bg-gray-500';
     };
 
+    const getIconForHistoryAction = (action) => {
+        if (!action) return History;
+
+        if (action.startsWith('Retour au statut:')) return RefreshCcw;
+        if (action === 'Commande modifiée') return Edit;
+        if (action.toLowerCase().includes('commandé')) return Package;
+
+        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === action);
+        return statusConfig?.icon || CheckCircle;
+    };
+
     const getNextStatusButton = (currentStatusLabel) => {
         const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
         const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
@@ -119,15 +130,24 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                     {order.receiptNumber && (<p className="text-gray-300 text-sm flex items-center gap-2 mt-3"><ReceiptText size={16} /> <span className="font-semibold">Ticket:</span> {order.receiptNumber}</p>)}
                     {order.orderNotes && (<p className="text-gray-400 text-sm italic mt-3 break-words"><span className="font-semibold">Notes:</span> {order.orderNotes}</p>)}
                     
-                    <div className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-700 space-y-1">
+                    <div className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-700 space-y-2">
                         {order.history && order.history.length > 0 ? (
-                            order.history.map((event, index) => (
-                                <p key={index}>
-                                    <span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                            ))
+                            order.history.map((event, index) => {
+                                const Icon = getIconForHistoryAction(event.action);
+                                return (
+                                    <div key={index} className="flex items-center">
+                                        <Icon className="mr-2 h-4 w-4 text-gray-400 flex-shrink-0" />
+                                        <p>
+                                            <span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                );
+                            })
                         ) : (
-                             <p>Commandé par <span className="font-medium text-white">{getUserDisplayName(order.orderedBy?.email)}</span> le {new Date(order.orderDate).toLocaleDateString('fr-FR')}</p>
+                            <div className="flex items-center">
+                                 <Package className="mr-2 h-4 w-4 text-gray-400 flex-shrink-0" />
+                                 <p>Commandé par <span className="font-medium text-white">{getUserDisplayName(order.orderedBy?.email)}</span> le {new Date(order.orderDate).toLocaleDateString('fr-FR')}</p>
+                            </div>
                         )}
                     </div>
 
@@ -218,7 +238,6 @@ export default function App() {
             const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setOrders(fetchedOrders);
             
-            // Créer une liste unique d'utilisateurs à partir des commandes
             const usersFromOrders = fetchedOrders.reduce((acc, order) => {
                 if (order.orderedBy?.email) {
                     acc[order.orderedBy.email] = {
@@ -238,7 +257,6 @@ export default function App() {
             }, {});
 
             setAllUsers(Object.values(usersFromOrders));
-
             setIsLoading(false);
             setDbError(null);
         }, (err) => {
@@ -273,9 +291,50 @@ export default function App() {
     }, [currentUser]);
 
     const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) { showToast("Vous devez être connecté.", 'error'); return; } setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), { ...orderData, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] }); showToast("Commande modifiée !", 'success'); } else { await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), { ...orderData, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label, history: [{ timestamp: now, action: `Commande ${ORDER_STATUSES_CONFIG.ORDERED.label.toLowerCase()}`, by: userInfo }] }); showToast("Commande ajoutée !", 'success'); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { showToast("Échec de l'enregistrement.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
-    const handleUpdateStatus = useCallback((orderId, newStatusLabel) => { const user = getCurrentUserInfo(); if(user?.role === 'admin') { updateOrderStatus(orderId, newStatusLabel); } else { setOrderToUpdateStatusAdvisor({id: orderId, newStatusLabel}); setShowConfirmAdvisorChange(true); } }, [getCurrentUserInfo, updateOrderStatus]);
-    const confirmAdvisorUpdateStatus = useCallback(() => { if(orderToUpdateStatusAdvisor) { updateOrderStatus(orderToUpdateStatusAdvisor.id, orderToUpdateStatusAdvisor.newStatusLabel); } setShowConfirmAdvisorChange(false); setOrderToUpdateStatusAdvisor(null); }, [orderToUpdateStatusAdvisor, updateOrderStatus]);
-    const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => { if (!db || !currentUser) return; setIsSaving(true); const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) throw new Error("Commande non trouvée"); let updateData = { currentStatus: newStatusLabel }; const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : `Statut mis à jour: ${newStatusLabel}`; await updateDoc(orderRef, {...updateData, history: [...(orderToUpdate.history || []), {timestamp: now, action: historyAction, by: userInfo}]}); showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success'); } catch (e) { console.error(e); showToast("Échec de la mise à jour.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
+    
+    const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => {
+        if (!db || !currentUser) return;
+        setIsSaving(true);
+        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
+        const userInfo = getCurrentUserInfo();
+        const now = new Date().toISOString();
+        try {
+            const orderToUpdate = orders.find(o => o.id === orderId);
+            if (!orderToUpdate) throw new Error("Commande non trouvée");
+            
+            const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : newStatusLabel;
+            
+            let updateData = { currentStatus: newStatusLabel };
+            await updateDoc(orderRef, {
+                ...updateData,
+                history: [...(orderToUpdate.history || []), { timestamp: now, action: historyAction, by: userInfo }]
+            });
+            showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success');
+        } catch (e) {
+            console.error(e);
+            showToast("Échec de la mise à jour.", 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
+
+    const handleUpdateStatus = useCallback((orderId, newStatusLabel) => {
+        if (isAdmin) {
+            updateOrderStatus(orderId, newStatusLabel);
+        } else {
+            setOrderToUpdateStatusAdvisor({ id: orderId, newStatusLabel });
+            setShowConfirmAdvisorChange(true);
+        }
+    }, [isAdmin, updateOrderStatus, setOrderToUpdateStatusAdvisor, setShowConfirmAdvisorChange]);
+
+    const confirmAdvisorUpdateStatus = useCallback(() => {
+        if (orderToUpdateStatusAdvisor) {
+            updateOrderStatus(orderToUpdateStatusAdvisor.id, orderToUpdateStatusAdvisor.newStatusLabel);
+        }
+        setShowConfirmAdvisorChange(false);
+        setOrderToUpdateStatusAdvisor(null);
+    }, [orderToUpdateStatusAdvisor, updateOrderStatus, setOrderToUpdateStatusAdvisor, setShowConfirmAdvisorChange]);
+
     const handleDeleteOrder = useCallback((id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }, []);
     const handleConfirmDelete = useCallback(async () => { if (!db || !isAdmin || !orderToDeleteId) { showToast("Action non autorisée.", 'error'); return; } setIsSaving(true); try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId)); showToast("Commande supprimée.", 'success'); } catch (e) { showToast("Échec de la suppression.", 'error'); } finally { setShowConfirmDelete(false); setOrderToDeleteId(null); setIsSaving(false); } }, [db, isAdmin, orderToDeleteId, showToast]);
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
@@ -293,7 +352,6 @@ export default function App() {
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
 
-            {/* Conteneur principal avec largeur maximale et centrage */}
             <div className="max-w-4xl mx-auto px-2 sm:px-4 lg:px-6"> 
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
