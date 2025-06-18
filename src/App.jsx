@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw // Ajout de RefreshCcw pour le bouton de retour
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw
 } from 'lucide-react';
 
 // =================================================================
@@ -765,10 +765,18 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
                     )}
                     <div>
                         <label htmlFor="advisorRole" className="block text-sm font-medium text-gray-300 mb-1">Rôle *</label>
-                        <select id="advisorRole" value={role} onChange={(e) => setRole(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg">
-                            <option value="counselor">Conseiller</option>
-                            <option value="admin">Admin</option>
-                        </select>
+                        <div className="relative"> {/* Conteneur pour la flèche personnalisée */}
+                            <select
+                                id="advisorRole"
+                                value={role}
+                                onChange={(e) => setRole(e.target.value)}
+                                className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg appearance-none pr-8 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                            >
+                                <option value="counselor">Conseiller</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                        </div>
                     </div>
                     {formError && <p className="text-red-400 text-sm">{formError}</p>}
                     <div className="flex gap-4">
