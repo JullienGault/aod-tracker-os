@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+
+// Importations Firebase
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+
+// Importations des icônes Lucide React
 import {
     PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw
 } from 'lucide-react';
 
 // =================================================================
-// CONFIGURATION & CONSTANTES
+// CONFIGURATION & CONSTANTES DE L'APPLICATION
 // =================================================================
 
-// Configuration Firebase de l'application
+// Configuration Firebase pour l'initialisation de l'application.
+// Ces valeurs sont spécifiques à votre projet Firebase.
 const firebaseConfig = {
     apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
     authDomain: "aod-tracker-os.firebaseapp.com",
@@ -20,74 +25,76 @@ const firebaseConfig = {
     appId: "1:429289937311:web:1ab993b09899afc2b245aa",
 };
 
-// ID de l'application fourni par l'environnement
+// ID unique de l'application, utilisé pour isoler les données dans Firestore.
+// Il est récupéré depuis l'environnement ou utilise une valeur par défaut.
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 
-// Email de l'administrateur principal de l'application
+// Email de l'administrateur principal. Ce compte a des privilèges étendus.
 const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
-// Définition des statuts des commandes avec leurs noms affichables, progression, couleurs et icônes
+// Définition des statuts de commande : nom affichable, description, style, icône, ordre de progression,
+// et transitions autorisées (vers l'avant et vers l'arrière pour les admins).
 const ORDER_STATUSES_CONFIG = {
-    // Statut initial
+    // Statut initial: la commande est enregistrée et attend sa réception.
     ORDERED: {
         label: 'Commandé',
         description: 'La commande a été passée et est en attente de réception.',
-        colorClass: 'bg-yellow-500', // Couleurs Tailwind pour les badges
-        icon: Package, // Icône de colis
+        colorClass: 'bg-yellow-500',
+        icon: Package,
         order: 1,
         allowTransitionTo: ['RECEIVED_IN_STORE', 'CANCELLED'],
-        allowTransitionFrom: [] // Aucun statut précédent logique pour "Commandé"
+        allowTransitionFrom: []
     },
-    // Statut intermédiaire
+    // Statut intermédiaire: l'article est arrivé en boutique.
     RECEIVED_IN_STORE: {
         label: 'Reçu en boutique',
         description: 'L\'article a été reçu en magasin et est prêt à être traité.',
         colorClass: 'bg-green-500',
-        icon: Truck, // Icône de camion/livraison
+        icon: Truck,
         order: 2,
         allowTransitionTo: ['CLIENT_NOTIFIED', 'CANCELLED'],
-        allowTransitionFrom: ['ORDERED'] // Peut revenir de "Commandé" (si erreur de saisie, par exemple)
+        allowTransitionFrom: ['ORDERED']
     },
-    // Statut intermédiaire
+    // Statut intermédiaire: le client a été informé de la disponibilité de sa commande.
     CLIENT_NOTIFIED: {
         label: 'Client prévenu',
         description: 'Le client a été informé que sa commande est disponible.',
         colorClass: 'bg-blue-500',
-        icon: Bell, // Icône de notification
+        icon: Bell,
         order: 3,
         allowTransitionTo: ['PICKED_UP', 'CANCELLED'],
-        allowTransitionFrom: ['RECEIVED_IN_STORE'] // Peut revenir de "Reçu en boutique"
+        allowTransitionFrom: ['RECEIVED_IN_STORE']
     },
-    // Statut terminal (succès)
+    // Statut terminal de succès: le client a retiré sa commande.
     PICKED_UP: {
         label: 'Client a retiré',
         description: 'Le client a récupéré sa commande.',
         colorClass: 'bg-purple-600',
-        icon: UserCheck, // Icône d'utilisateur avec coche
+        icon: UserCheck,
         order: 4,
-        allowTransitionTo: [], // Statut final
-        allowTransitionFrom: ['CLIENT_NOTIFIED'] // Peut revenir de "Client prévenu" (erreur de scan, etc.)
+        allowTransitionTo: [],
+        allowTransitionFrom: ['CLIENT_NOTIFIED']
     },
-    // Statut terminal (échec/fin)
+    // Statut terminal d'échec ou d'annulation: la commande est annulée.
     CANCELLED: {
         label: 'Annulée',
         description: 'La commande a été annulée.',
         colorClass: 'bg-red-500',
-        icon: X, // Icône de croix/annulation
+        icon: X,
         order: 5,
-        allowTransitionTo: [], // Statut final
-        allowTransitionFrom: ['ORDERED', 'RECEIVED_IN_STORE', 'CLIENT_NOTIFIED', 'PICKED_UP'] // Peut être annulé depuis presque n'importe quel statut
+        allowTransitionTo: [],
+        allowTransitionFrom: ['ORDERED', 'RECEIVED_IN_STORE', 'CLIENT_NOTIFIED', 'PICKED_UP']
     }
 };
 
-// Convertir l'objet en un tableau trié pour faciliter l'itération dans les filtres
+// Tableau des statuts de commande triés par ordre de progression, pour faciliter l'itération.
 const ORDER_STATUSES_ARRAY = Object.keys(ORDER_STATUSES_CONFIG)
     .map(key => ({ key, ...ORDER_STATUSES_CONFIG[key] }))
     .sort((a, b) => a.order - b.order);
 
 
 // =================================================================
-// COMPOSANTS UI
+// COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
 
 // Styles d'animation pour les transitions fluides
@@ -231,13 +238,13 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] md:max-h-[80vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
                 <h2 className="text-2xl font-bold text-white mb-6 text-center">{initialData ? 'Modifier la commande' : 'Nouvelle Commande d\'Accessoire'}</h2>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> {/* Changed to 1 column on small screens, 2 on sm and up */}
                         <div>
                             <label htmlFor="clientFirstName" className="block text-sm font-medium text-gray-300 mb-2">Prénom client *</label>
                             <input id="clientFirstName" type="text" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
@@ -260,8 +267,8 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
                     <h3 className="text-xl font-semibold text-white mb-4">Articles Commandés *</h3>
                     <div className="space-y-3">
                         {items.map((item, index) => (
-                            <div key={index} className="flex items-end gap-2 bg-gray-700/50 p-3 rounded-lg">
-                                <div className="flex-grow">
+                            <div key={index} className="flex flex-col sm:flex-row items-end gap-2 bg-gray-700/50 p-3 rounded-lg"> {/* Changed to column on small, row on sm and up */}
+                                <div className="flex-grow w-full"> {/* Added w-full for small screens */}
                                     <label htmlFor={`itemName-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Article</label>
                                     <input
                                         id={`itemName-${index}`}
@@ -273,7 +280,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
                                         className="w-full bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm"
                                     />
                                 </div>
-                                <div>
+                                <div className="w-full sm:w-auto"> {/* Adjusted width for quantity on small screens */}
                                     <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Qté</label>
                                     <input
                                         id={`quantity-${index}`}
@@ -282,11 +289,11 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
                                         value={item.quantity}
                                         onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
                                         required
-                                        className="w-20 bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm"
+                                        className="w-full sm:w-20 bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm"
                                     />
                                 </div>
                                 {items.length > 1 && (
-                                    <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-red-400 hover:text-red-300 transition-colors">
+                                    <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-red-400 hover:text-red-300 transition-colors self-end sm:self-auto"> {/* Aligned to end on small screens */}
                                         <MinusCircle size={20} />
                                     </button>
                                 )}
@@ -405,7 +412,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 
     return (
         <div className="bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] hover:shadow-blue-500/10 hover:ring-2 hover:ring-blue-500/50 animate-fade-in-up">
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4"> {/* Added flex-col for small screens */}
                 <div>
                     <h3 className="text-xl font-bold text-white mb-1">
                         <span className="text-blue-200">{order.clientFirstName} {order.clientLastName}</span>
@@ -414,7 +421,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         Commandé le {new Date(order.orderDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>
+                <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)} mt-2 sm:mt-0`}> {/* Added margin top for small screens */}
                     {order.currentStatus}
                 </span>
             </div>
@@ -477,28 +484,28 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                 )}
             </div>
 
-            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700"> {/* Changed to flex-col on small screens, wrap on sm and up */}
                 {getNextStatusButton(order.currentStatus)}
                 {isAdmin && order.currentStatus !== ORDER_STATUSES_CONFIG.CANCELLED.label && (
                     <>
                         <button
                             onClick={() => onEdit(order)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 w-full sm:w-auto" {/* Added w-full for small screens */}
                         >
                             <Edit size={18} /> Modifier
                         </button>
                         <button
                             onClick={() => onDelete(order.id)}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 w-full sm:w-auto" {/* Added w-full for small screens */}
                         >
                             <Trash2 size={18} /> Supprimer
                         </button>
                     </>
                 )}
-                {getRevertStatusButtons(order.currentStatus)} {/* Nouveau bouton pour les admins */}
+                {getRevertStatusButtons(order.currentStatus)}
                 <button
                     onClick={() => onShowHistory(order)}
-                    className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                    className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 w-full sm:w-auto" {/* Added w-full for small screens */}
                 >
                     <History size={18} /> Historique
                 </button>
@@ -517,7 +524,7 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}> {/* Added horizontal margin for small screens */}
                 <button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -525,12 +532,12 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
                 <div className="space-y-4">
                     {order.history && order.history.length > 0 ? (
                         order.history.map((event, index) => (
-                            <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4">
-                                <Calendar size={20} className="text-blue-400 flex-shrink-0 mt-1" />
+                            <div key={index} className="bg-gray-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4"> {/* Adjusted for small screens */}
+                                <Calendar size={20} className="text-blue-400 flex-shrink-0 sm:mt-1" />
                                 <div>
                                     <p className="text-white font-medium">{event.action}</p>
                                     <p className="text-gray-300 text-sm">
-                                        Par <span className="font-semibold">{getDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} {/* Ajout de l'espace ici */}
+                                        Par <span className="font-semibold">{getDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                     {event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}
                                 </div>
@@ -548,14 +555,14 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
 // Composant de modale de confirmation pour les actions critiques (Admin)
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up">
+        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"> {/* Added horizontal margin for small screens */}
             <div className="text-center">
                 <AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" />
                 <h3 className="mt-4 text-xl font-medium text-white">{message}</h3>
             </div>
-            <div className="mt-6 flex justify-center gap-4">
-                <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">{cancelText}</button>
-                <button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors`}>{confirmText}</button>
+            <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"> {/* Changed to column on small, row on sm and up */}
+                <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button>
+                <button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button>
             </div>
         </div>
     </div>
@@ -564,15 +571,15 @@ const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confir
 // Nouvelle modale de confirmation pour les conseillers
 const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler' }) => (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up">
+        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"> {/* Added horizontal margin for small screens */}
             <div className="text-center">
                 <Info className="mx-auto h-12 w-12 text-blue-400" />
                 <h3 className="mt-4 text-xl font-medium text-white">{message}</h3>
                 <p className="text-gray-400 text-sm mt-2">Le changement d'étape est définitif. En cas de besoin, merci de contacter un administrateur.</p>
             </div>
-            <div className="mt-6 flex justify-center gap-4">
-                <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">{cancelText}</button>
-                <button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors`}>{confirmText}</button>
+            <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"> {/* Changed to column on small, row on sm and up */}
+                <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button>
+                <button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button>
             </div>
         </div>
     </div>
@@ -587,7 +594,7 @@ const LoginForm = ({ onLogin, error, onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 relative animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 relative animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}> {/* Added horizontal margin for small screens */}
                 <button onClick={onClose} aria-label="Fermer la fenêtre de connexion" className="absolute top-2 right-2 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -730,7 +737,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
     if (!isAdmin) {
         return (
             <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
-                <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up">
+                <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"> {/* Added horizontal margin for small screens */}
                     <p className="text-red-400 text-center">Accès refusé. Seul l'administrateur peut gérer les conseillers.</p>
                     <button onClick={onClose} className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg">Fermer</button>
                 </div>
@@ -740,7 +747,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}> {/* Added horizontal margin for small screens */}
                 <button onClick={onClose} aria-label="Fermer la gestion des conseillers" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -765,7 +772,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
                     )}
                     <div>
                         <label htmlFor="advisorRole" className="block text-sm font-medium text-gray-300 mb-1">Rôle *</label>
-                        <div className="relative"> {/* Conteneur pour la flèche personnalisée */}
+                        <div className="relative">
                             <select
                                 id="advisorRole"
                                 value={role}
@@ -779,7 +786,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
                         </div>
                     </div>
                     {formError && <p className="text-red-400 text-sm">{formError}</p>}
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4"> {/* Changed to column on small, row on sm and up */}
                         <button type="submit" disabled={isSaving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             {isSaving ? 'Enregistrement...' : (editAdvisorId ? 'Mettre à jour' : 'Ajouter')}
                         </button>
@@ -798,12 +805,12 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
                     ) : (
                         <ul className="space-y-3">
                             {advisors.map((advisor) => (
-                                <li key={advisor.id} className="flex items-center justify-between bg-gray-700/50 p-3 rounded-lg">
+                                <li key={advisor.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-700/50 p-3 rounded-lg"> {/* Adjusted for small screens */}
                                     <div>
                                         <p className="font-medium text-white">{advisor.name}</p>
                                         <p className="text-sm text-gray-400">{advisor.email} (<span className="capitalize">{advisor.role}</span>)</p>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 mt-2 sm:mt-0"> {/* Added margin top for small screens */}
                                         <button onClick={() => handleEditClick(advisor)} className="text-blue-400 hover:text-blue-300 transition-colors">
                                             <Edit size={20} />
                                         </button>
@@ -1064,7 +1071,7 @@ export default function App() {
                     ...orderData,
                     orderedBy: userInfo,
                     orderDate: now,
-                    currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label, // Utilisation du label ici
+                    currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label,
                     receivedBy: null,
                     receptionDate: null,
                     notifiedBy: null,
@@ -1242,7 +1249,7 @@ export default function App() {
             }];
 
             await updateDoc(orderRef, {
-                currentStatus: ORDER_STATUSES_CONFIG.CANCELLED.label, // Utilisation du label ici
+                currentStatus: ORDER_STATUSES_CONFIG.CANCELLED.label,
                 history: updatedHistory
             });
             setOrderToCancelId(null);
@@ -1410,38 +1417,38 @@ export default function App() {
                 />
             )}
 
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6"> {/* Added responsive padding */}
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tight">AOD Tracker OS</h1> {/* Titre de l'application */}
-                        <p className="text-gray-400 mt-1">
+                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker OS</h1> {/* Responsive text size */}
+                        <p className="text-gray-400 mt-1 text-sm sm:text-base"> {/* Responsive text size */}
                             Suivez vos commandes d'accessoires en temps réel.
                         </p>
                     </div>
-                    <div className="mt-4 sm:mt-0 flex items-center gap-4">
+                    <div className="mt-4 sm:mt-0 flex flex-wrap items-center justify-end gap-2 sm:gap-4"> {/* Added flex-wrap and adjusted gap for smaller screens */}
                         {currentUser && (
                             <div className="flex items-center gap-2 text-blue-300">
                                 <User size={18} />
-                                <span className="font-medium">Connecté :</span>
-                                <span className="bg-gray-700/50 px-3 py-1 rounded-full text-sm font-semibold text-white">
-                                    {getCurrentUserInfo()?.name || 'Conseiller'} {/* Affiche le nom ou 'Conseiller' par défaut */}
+                                <span className="font-medium text-sm sm:text-base">Connecté :</span> {/* Responsive text size */}
+                                <span className="bg-gray-700/50 px-2 py-1 rounded-full text-xs sm:text-sm font-semibold text-white"> {/* Responsive text size and padding */}
+                                    {getCurrentUserInfo()?.name || 'Conseiller'}
                                 </span>
                             </div>
                         )}
                         {isAdmin ? (
-                            <div className="flex items-center gap-4">
-                                <span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-sm font-bold text-white shadow-md">
+                            <div className="flex flex-wrap gap-2 sm:gap-4"> {/* flex-wrap for admin buttons on smaller screens */}
+                                <span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold text-white shadow-md"> {/* Responsive text size and padding */}
                                     <UserCheck size={16} /> Mode Admin
                                 </span>
                                 <button
                                     onClick={() => { setShowOrderForm(true); setEditingOrder(null); }}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base flex-1 sm:flex-none" /* Responsive padding and flex-1 for full width on small screens */
                                 >
                                     <PlusCircle size={20} /> Nouvelle Commande
                                 </button>
                                 <button
                                     onClick={() => setShowAdvisorManagement(true)}
-                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base flex-1 sm:flex-none" /* Responsive padding and flex-1 for full width on small screens */
                                 >
                                     <UserPlus size={20} /> Gérer Conseillers
                                 </button>
@@ -1452,10 +1459,10 @@ export default function App() {
                                 </Tooltip>
                             </div>
                         ) : ( /* Bloc pour les conseillers (non-admin) */
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-wrap gap-2 sm:gap-4"> {/* flex-wrap for counselor buttons on smaller screens */}
                                 <button
                                     onClick={() => { setShowOrderForm(true); setEditingOrder(null); }}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base flex-1 sm:flex-none" /* Responsive padding and flex-1 for full width on small screens */
                                 >
                                     <PlusCircle size={20} /> Nouvelle Commande
                                 </button>
@@ -1471,9 +1478,9 @@ export default function App() {
 
                 {/* Filter and Sort Controls */}
                 {currentUser && (
-                    <div className="flex flex-wrap items-center gap-4 mb-8">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-8"> {/* Changed to column on small, row and wrap on sm and up */}
                         {/* Search Input */}
-                        <div className="relative flex-grow min-w-[200px]">
+                        <div className="relative flex-grow min-w-full sm:min-w-[200px] sm:flex-grow-0"> {/* Adjusted min-width for small screens and flex-grow */}
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input
                                 type="text"
@@ -1485,11 +1492,11 @@ export default function App() {
                         </div>
 
                         {/* Status Filter Dropdown */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto"> {/* Added full width on small screens */}
                             <select
                                 value={selectedStatusFilter}
                                 onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer"
+                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" /* Added full width */
                             >
                                 <option value="All">Tous les statuts</option>
                                 {ORDER_STATUSES_ARRAY.map(status => (
@@ -1502,11 +1509,11 @@ export default function App() {
                         </div>
 
                         {/* Advisor Filter Dropdown */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto"> {/* Added full width on small screens */}
                             <select
                                 value={selectedAdvisorFilter}
                                 onChange={(e) => setSelectedAdvisorFilter(e.target.value)}
-                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer"
+                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" /* Added full width */
                             >
                                 <option value="All">Tous les conseillers</option>
                                 {advisors.map(advisor => (
@@ -1519,11 +1526,11 @@ export default function App() {
                         </div>
 
                         {/* Sort Order Dropdown */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto"> {/* Added full width on small screens */}
                             <select
                                 value={sortOrder}
                                 onChange={(e) => setSortOrder(e.target.value)}
-                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer"
+                                className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" /* Added full width */
                             >
                                 <option value="orderDateDesc">Date (la plus récente)</option>
                                 <option value="orderDateAsc">Date (la plus ancienne)</option>
@@ -1548,15 +1555,15 @@ export default function App() {
                 )}
 
                 {!isLoading && filteredAndSortedOrders.length === 0 && (
-                    <div className="text-center py-20 bg-gray-800 rounded-2xl">
-                        <h2 className="text-2xl font-semibold text-gray-300">Aucune commande ne correspond aux filtres.</h2>
-                        <p className="text-gray-400 mt-2">Essayez d'ajuster vos critères de recherche ou vos filtres.</p>
-                        {currentUser && <p className="text-gray-400 mt-2">Cliquez sur "Nouvelle Commande" pour ajouter une commande.</p>} {/* Message mis à jour pour les conseillers */}
+                    <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"> {/* Adjusted vertical padding */}
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-300">Aucune commande ne correspond aux filtres.</h2> {/* Responsive text size */}
+                        <p className="text-gray-400 mt-2 text-sm sm:text-base">Essayez d'ajuster vos critères de recherche ou vos filtres.</p> {/* Responsive text size */}
+                        {currentUser && <p className="text-gray-400 mt-2 text-sm sm:text-base">Cliquez sur "Nouvelle Commande" pour ajouter une commande.</p>}
                     </div>
                 )}
 
                 {!isLoading && filteredAndSortedOrders.length > 0 && (
-                    <div className="flex flex-col gap-6 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in"> {/* Grid layout for cards, responsive columns */}
                         {filteredAndSortedOrders.map((order) => (
                             <OrderCard
                                 key={order.id}
