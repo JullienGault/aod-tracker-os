@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, ChevronUp, RefreshCcw, ArrowLeft, ArrowRight // Ajout de ArrowLeft, ArrowRight pour la pagination
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw
 } from 'lucide-react';
 
 // =================================================================
@@ -33,7 +33,6 @@ const ORDER_STATUSES_CONFIG = {
         label: 'Commandé',
         description: 'La commande a été passée et est en attente de réception.',
         colorClass: 'bg-yellow-500', // Couleurs Tailwind pour les badges
-        borderColorClass: 'border-yellow-500', // Couleur pour la barre latérale
         icon: Package, // Icône de colis
         order: 1,
         allowTransitionTo: ['RECEIVED_IN_STORE', 'CANCELLED'],
@@ -44,7 +43,6 @@ const ORDER_STATUSES_CONFIG = {
         label: 'Reçu en boutique',
         description: 'L\'article a été reçu en magasin et est prêt à être traité.',
         colorClass: 'bg-green-500',
-        borderColorClass: 'border-green-500',
         icon: Truck, // Icône de camion/livraison
         order: 2,
         allowTransitionTo: ['CLIENT_NOTIFIED', 'CANCELLED'],
@@ -55,7 +53,6 @@ const ORDER_STATUSES_CONFIG = {
         label: 'Client prévenu',
         description: 'Le client a été informé que sa commande est disponible.',
         colorClass: 'bg-blue-500',
-        borderColorClass: 'border-blue-500',
         icon: Bell, // Icône de notification
         order: 3,
         allowTransitionTo: ['PICKED_UP', 'CANCELLED'],
@@ -66,7 +63,6 @@ const ORDER_STATUSES_CONFIG = {
         label: 'Client a retiré',
         description: 'Le client a récupéré sa commande.',
         colorClass: 'bg-purple-600',
-        borderColorClass: 'border-purple-600',
         icon: UserCheck, // Icône d'utilisateur avec coche
         order: 4,
         allowTransitionTo: [], // Statut final
@@ -77,7 +73,6 @@ const ORDER_STATUSES_CONFIG = {
         label: 'Annulée',
         description: 'La commande a été annulée.',
         colorClass: 'bg-red-500',
-        borderColorClass: 'border-red-500',
         icon: X, // Icône de croix/annulation
         order: 5,
         allowTransitionTo: [], // Statut final
@@ -321,39 +316,49 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     );
 };
 
-// Composant pour afficher les détails complets d'une commande (ancien contenu de OrderCard sans les boutons d'expansion)
-const FullOrderDetails = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap, onRevertStatus }) => {
+// Composant pour afficher une carte de commande individuelle
+const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap, onRevertStatus }) => {
+    // Détermine la couleur du badge de statut
+    const getStatusColor = (statusLabel) => {
+        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel);
+        return statusConfig?.colorClass || 'bg-gray-500';
+    };
+
+    // Aide pour obtenir le nom d'affichage à partir de l'email
     const getDisplayName = (email) => {
         return advisorsMap[email.toLowerCase()]?.name || email;
     };
 
-    // Helper to get status order for conditional rendering
-    const getStatusOrder = (statusLabel) => {
-        return ORDER_STATUSES_ARRAY.find(s => s.label === statusLabel)?.order || 0;
-    };
-
+    // Obtient la configuration du bouton pour le prochain statut
     const getNextStatusButton = (currentStatusLabel) => {
+        // Trouvez la clé du statut actuel pour accéder à sa configuration
         const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
         const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
 
+        // Un conseiller peut avancer, un admin aussi (mais l'admin a d'autres options)
         if (!currentConfig || currentConfig.allowTransitionTo.length === 0) {
             return null;
         }
+
+        // Pour l'instant, on prend le premier statut dans allowTransitionTo, comme dans votre logique originale.
         const nextStatusKey = currentConfig.allowTransitionTo[0];
         const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey];
 
+        // Ne pas proposer l'annulation comme "prochain statut" ici si un bouton d'annulation existe déjà
         if (!nextStatusConfig || nextStatusConfig.key === 'CANCELLED') {
              return null;
         }
         
         const nextStatusLabel = nextStatusConfig.label;
         const ButtonIcon = nextStatusConfig.icon;
+        // Extrait la couleur de base et construit une version foncée pour le hover
         const buttonColorBase = nextStatusConfig.colorClass.replace('bg-', 'bg-');
-        const buttonColorHover = buttonColorBase.replace(/\d+$/, num => parseInt(num, 10) + 100);
+        const buttonColorHover = buttonColorBase.replace(/\d+$/, num => parseInt(num, 10) + 100); // Ex: bg-green-500 -> bg-green-600
+
 
         return (
             <button
-                onClick={() => onUpdateStatus(order.id, nextStatusLabel)}
+                onClick={() => onUpdateStatus(order.id, nextStatusLabel)} // Passez le label du nouveau statut
                 className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
             >
                 <ButtonIcon size={18} /> Marquer "{nextStatusLabel}"
@@ -361,6 +366,7 @@ const FullOrderDetails = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, on
         );
     };
 
+    // Boutons de retour de statut pour l'admin
     const getRevertStatusButtons = (currentStatusLabel) => {
         if (!isAdmin) return null;
 
@@ -397,9 +403,22 @@ const FullOrderDetails = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, on
         );
     };
 
-
     return (
-        <div>
+        <div className="bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] hover:shadow-blue-500/10 hover:ring-2 hover:ring-blue-500/50 animate-fade-in-up">
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h3 className="text-xl font-bold text-white mb-1">
+                        <span className="text-blue-200">{order.clientFirstName} {order.clientLastName}</span>
+                    </h3>
+                    <p className="text-gray-400 text-sm mb-2">
+                        Commandé le {new Date(order.orderDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>
+                    {order.currentStatus}
+                </span>
+            </div>
+
             {order.clientEmail && (
                 <p className="text-gray-300 text-sm flex items-center gap-2 mb-1">
                     <Mail size={16} /> {order.clientEmail}
@@ -434,24 +453,23 @@ const FullOrderDetails = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, on
             )}
 
             <div className="text-sm text-gray-400 mt-auto pt-3 border-t border-gray-700">
-                {/* These might be redundant if already in CompactOrderRow, but included for completeness */}
                 <p className="flex items-center gap-2 mb-1">
                     <User size={16} /> Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email || 'N/A')}</span>
                 </p>
-                {/* Affichage conditionnel des informations de statut */}
-                {order.receivedBy && order.receptionDate && getStatusOrder(order.currentStatus) >= ORDER_STATUSES_CONFIG.RECEIVED_IN_STORE.order && (
+                {/* Affichage conditionnel des informations de statut : corrigé ici */}
+                {order.receivedBy && order.receptionDate && (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) >= ORDER_STATUSES_CONFIG.RECEIVED_IN_STORE.order && (
                     <p className="flex items-center gap-2 mb-1">
                         <CheckCircle size={16} className="text-green-400" /> Reçu par <span className="font-medium text-white">{getDisplayName(order.receivedBy?.email || 'N/A')}</span>
                         le {new Date(order.receptionDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 )}
-                {order.notifiedBy && order.notificationDate && getStatusOrder(order.currentStatus) >= ORDER_STATUSES_CONFIG.CLIENT_NOTIFIED.order && (
+                {order.notifiedBy && order.notificationDate && (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) >= ORDER_STATUSES_CONFIG.CLIENT_NOTIFIED.order && (
                     <p className="flex items-center gap-2 mb-1">
                         <Bell size={16} className="text-blue-400" /> Client prévenu par <span className="font-medium text-white">{getDisplayName(order.notifiedBy?.email || 'N/A')}</span>
                         le {new Date(order.notificationDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 )}
-                {order.pickedUpBy && order.pickedUpDate && getStatusOrder(order.currentStatus) >= ORDER_STATUSES_CONFIG.PICKED_UP.order && (
+                {order.pickedUpBy && order.pickedUpDate && (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) >= ORDER_STATUSES_CONFIG.PICKED_UP.order && (
                     <p className="flex items-center gap-2">
                         <UserCheck size={16} className="text-purple-400" /> Retiré par <span className="font-medium text-white">{getDisplayName(order.pickedUpBy?.email || 'N/A')}</span>
                         le {new Date(order.pickedUpDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -459,7 +477,6 @@ const FullOrderDetails = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, on
                 )}
             </div>
 
-            {/* Action Buttons for details view */}
             <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
                 {getNextStatusButton(order.currentStatus)}
                 {isAdmin && order.currentStatus !== ORDER_STATUSES_CONFIG.CANCELLED.label && (
@@ -478,7 +495,7 @@ const FullOrderDetails = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, on
                         </button>
                     </>
                 )}
-                {getRevertStatusButtons(order.currentStatus)}
+                {getRevertStatusButtons(order.currentStatus)} {/* Nouveau bouton pour les admins */}
                 <button
                     onClick={() => onShowHistory(order)}
                     className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
@@ -486,72 +503,6 @@ const FullOrderDetails = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, on
                     <History size={18} /> Historique
                 </button>
             </div>
-        </div>
-    );
-};
-
-// Composant pour une ligne de commande compacte avec fonctionnalité d'expansion
-const CompactOrderRow = ({ order, onToggleDetails, isExpanded, ...restProps }) => {
-    // Helper function to get status color and label (can be moved out to utils if needed)
-    const getStatusInfo = (statusLabel) => {
-        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel);
-        return { colorClass: statusConfig?.colorClass || 'bg-gray-500', icon: statusConfig?.icon || Info, borderColorClass: statusConfig?.borderColorClass || 'border-gray-500' };
-    };
-
-    const StatusIcon = getStatusInfo(order.currentStatus).icon;
-    const statusColorClass = getStatusInfo(order.currentStatus).colorClass;
-    const statusBorderColorClass = getStatusInfo(order.currentStatus).borderColorClass;
-
-
-    const getDisplayName = (email) => {
-        return restProps.advisorsMap[email.toLowerCase()]?.name || email;
-    };
-
-    return (
-        <div className={`bg-gray-800 rounded-lg shadow-md mb-2 overflow-hidden transition-all duration-300 border-l-4 ${statusBorderColorClass}`}>
-            {/* Compact Row - Clickable area */}
-            <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => onToggleDetails(order.id)}>
-                <div className="flex items-center gap-3 flex-grow"> {/* flex-grow pour que ça prenne la place disponible */}
-                    {/* Status Badge & Icon */}
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${statusColorClass}`}>
-                        <StatusIcon size={14} className="inline mr-1" />{order.currentStatus}
-                    </span>
-                    {/* Client Name */}
-                    <p className="font-medium text-white min-w-[120px] max-w-[200px] truncate"> {/* Largeurs fixes pour éviter le wrapping sur mobile */}
-                        {order.clientFirstName} {order.clientLastName}
-                    </p>
-                    {/* Main Item */}
-                    <p className="text-gray-400 text-sm min-w-[100px] max-w-[180px] truncate hidden sm:block">
-                        {order.items && order.items.length > 0 ? order.items[0].itemName : 'N/A'}
-                        {order.items && order.items.length > 1 && ` (+${order.items.length - 1})`}
-                    </p>
-                </div>
-                
-                <div className="flex items-center gap-3 justify-end flex-shrink-0"> {/* flex-shrink-0 pour ne pas écraser */}
-                    {/* Ordered By */}
-                    <p className="text-gray-400 text-sm hidden lg:block">
-                        <User size={14} className="inline mr-1" /> {getDisplayName(order.orderedBy?.email || 'N/A')}
-                    </p>
-                    {/* Order Date */}
-                    <p className="text-gray-400 text-sm hidden md:block">
-                        {new Date(order.orderDate).toLocaleDateString('fr-FR')}
-                    </p>
-                    {/* Expand Button */}
-                    <button className="text-gray-400 hover:text-white transition-colors p-1" aria-label={isExpanded ? "Réduire les détails" : "Voir les détails"}>
-                        {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                    </button>
-                </div>
-            </div>
-
-            {/* Expanded Content (FullOrderDetails) */}
-            {isExpanded && (
-                <div className="p-4 pt-0 border-t border-gray-700 animate-fade-in">
-                    <FullOrderDetails
-                        order={order}
-                        {...restProps} // Passe toutes les autres props (onUpdateStatus, onEdit, etc.)
-                    />
-                </div>
-            )}
         </div>
     );
 };
@@ -579,7 +530,7 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
                                 <div>
                                     <p className="text-white font-medium">{event.action}</p>
                                     <p className="text-gray-300 text-sm">
-                                        Par <span className="font-semibold">{getDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        Par <span className="font-semibold">{getDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} {/* Ajout de l'espace ici */}
                                     </p>
                                     {event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}
                                 </div>
@@ -624,8 +575,8 @@ const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 
                 <button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors`}>{confirmText}</button>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 
 // Composant de formulaire de connexion
@@ -909,11 +860,6 @@ export default function App() {
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
     const [sortOrder, setSortOrder] = useState('orderDateDesc');
-
-    // Pagination states
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10; // Vous pouvez ajuster ce nombre
-
     
     const [toast, setToast] = useState(null);
 
@@ -1061,21 +1007,6 @@ export default function App() {
 
         return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, sortOrder]);
-
-    // Pagination logic
-    const totalPages = Math.ceil(filteredAndSortedOrders.length / itemsPerPage);
-    const paginatedOrders = useMemo(() => {
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        return filteredAndSortedOrders.slice(startIndex, endIndex);
-    }, [filteredAndSortedOrders, currentPage, itemsPerPage]);
-
-    const handlePageChange = useCallback((page) => {
-        if (page > 0 && page <= totalPages) {
-            setCurrentPage(page);
-            setExpandedOrderId(null); // Collapse any open details when changing page
-        }
-    }, [totalPages]);
 
 
     const handleLogin = useCallback(async (email, password) => {
@@ -1263,7 +1194,7 @@ export default function App() {
         }
     }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
 
-    // Fonction appelée par CompactOrderRow pour la progression standard du statut
+    // Fonction appelée par OrderCard pour la progression standard du statut
     const handleUpdateStatus = useCallback((orderId, newStatusLabel) => {
         const currentUserProfile = getCurrentUserInfo();
         if (currentUserProfile && currentUserProfile.role === 'admin') {
@@ -1431,12 +1362,10 @@ export default function App() {
         );
     }
 
-    // État pour gérer quelle commande est étendue en vue détaillée
-    const [expandedOrderId, setExpandedOrderId] = useState(null);
-    const handleToggleDetails = useCallback((orderId) => {
-        setExpandedOrderId(prevId => prevId === orderId ? null : orderId);
-    }, []);
-
+    // Détermine si l'utilisateur est un conseiller (et non un admin principal)
+    // Note: isAdmin est déjà vrai si c'est l'admin principal ou un rôle 'admin'
+    // Donc, isCounselorOnly sera vrai si l'utilisateur n'est PAS admin mais est connecté.
+    const isCounselorOnly = currentUser && !isAdmin;
 
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
@@ -1637,18 +1566,16 @@ export default function App() {
                     <div className="text-center py-20 bg-gray-800 rounded-2xl">
                         <h2 className="text-2xl font-semibold text-gray-300">Aucune commande ne correspond aux filtres.</h2>
                         <p className="text-gray-400 mt-2">Essayez d'ajuster vos critères de recherche ou vos filtres.</p>
-                        {currentUser && <p className="text-gray-400 mt-2">Cliquez sur "Nouvelle Commande" pour ajouter une commande.</p>}
+                        {currentUser && <p className="text-gray-400 mt-2">Cliquez sur "Nouvelle Commande" pour ajouter une commande.</p>} {/* Message mis à jour pour les conseillers */}
                     </div>
                 )}
 
                 {!isLoading && filteredAndSortedOrders.length > 0 && (
                     <div className="flex flex-col gap-6 animate-fade-in">
-                        {paginatedOrders.map((order) => ( {/* Utilisation des commandes paginées */}
-                            <CompactOrderRow
+                        {filteredAndSortedOrders.map((order) => (
+                            <OrderCard
                                 key={order.id}
                                 order={order}
-                                onToggleDetails={handleToggleDetails}
-                                isExpanded={expandedOrderId === order.id}
                                 onUpdateStatus={handleUpdateStatus}
                                 onEdit={handleEditOrder}
                                 onDelete={(id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }}
@@ -1658,29 +1585,6 @@ export default function App() {
                                 onRevertStatus={handleRevertOrderStatus}
                             />
                         ))}
-                    </div>
-                )}
-
-                {/* Pagination Controls */}
-                {!isLoading && filteredAndSortedOrders.length > 0 && totalPages > 1 && (
-                    <div className="flex justify-center items-center gap-4 mt-8">
-                        <button
-                            onClick={() => handlePageChange(currentPage - 1)}
-                            disabled={currentPage === 1}
-                            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <ArrowLeft size={20} />
-                        </button>
-                        <span className="text-lg font-medium text-white">
-                            Page {currentPage} / {totalPages}
-                        </span>
-                        <button
-                            onClick={() => handlePageChange(currentPage + 1)}
-                            disabled={currentPage === totalPages}
-                            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <ArrowRight size={20} />
-                        </button>
                     </div>
                 )}
             </div>
