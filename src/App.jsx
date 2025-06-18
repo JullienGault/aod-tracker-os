@@ -26,14 +26,60 @@ const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 // Email de l'administrateur principal de l'application
 const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
-// Définition des statuts des commandes avec leurs noms affichables et la progression
-const ORDER_STATUSES = {
-    ORDERED: { name: 'Commandé', next: ['RECEIVED_IN_STORE'] },
-    RECEIVED_IN_STORE: { name: 'Reçu en boutique', next: ['CLIENT_NOTIFIED'] },
-    CLIENT_NOTIFIED: { name: 'Client prévenu ou averti', next: ['PICKED_UP'] },
-    PICKED_UP: { name: 'Client a retiré son colis', next: [] },
-    CANCELLED: { name: 'Annulée', next: [] }
+// Définition des statuts des commandes avec leurs noms affichables, progression, couleurs et icônes
+const ORDER_STATUSES_CONFIG = {
+    // Statut initial
+    ORDERED: {
+        label: 'Commandé',
+        description: 'La commande a été passée et est en attente de réception.',
+        colorClass: 'bg-yellow-500', // Couleurs Tailwind pour les badges
+        icon: Package, // Icône de colis
+        order: 1,
+        allowTransitionTo: ['RECEIVED_IN_STORE', 'CANCELLED'] // Peut être reçu ou annulé
+    },
+    // Statut intermédiaire
+    RECEIVED_IN_STORE: {
+        label: 'Reçu en boutique',
+        description: 'L\'article a été reçu en magasin et est prêt à être traité.',
+        colorClass: 'bg-green-500', // Couleurs Tailwind pour les badges
+        icon: Truck, // Icône de camion/livraison
+        order: 2,
+        allowTransitionTo: ['CLIENT_NOTIFIED', 'CANCELLED'] // Peut être notifié ou annulé
+    },
+    // Statut intermédiaire
+    CLIENT_NOTIFIED: {
+        label: 'Client prévenu',
+        description: 'Le client a été informé que sa commande est disponible.',
+        colorClass: 'bg-blue-500', // Couleurs Tailwind pour les badges
+        icon: Bell, // Icône de notification
+        order: 3,
+        allowTransitionTo: ['PICKED_UP', 'CANCELLED'] // Peut être retiré ou annulé
+    },
+    // Statut terminal (succès)
+    PICKED_UP: {
+        label: 'Client a retiré',
+        description: 'Le client a récupéré sa commande.',
+        colorClass: 'bg-purple-600', // Couleurs Tailwind pour les badges
+        icon: UserCheck, // Icône d'utilisateur avec coche
+        order: 4,
+        allowTransitionTo: [] // Statut final
+    },
+    // Statut terminal (échec/fin)
+    CANCELLED: {
+        label: 'Annulée',
+        description: 'La commande a été annulée.',
+        colorClass: 'bg-red-500', // Couleurs Tailwind pour les badges
+        icon: X, // Icône de croix/annulation
+        order: 5,
+        allowTransitionTo: [] // Statut final
+    }
 };
+
+// Convertir l'objet en un tableau trié pour faciliter l'itération dans les filtres
+const ORDER_STATUSES_ARRAY = Object.keys(ORDER_STATUSES_CONFIG)
+    .map(key => ({ key, ...ORDER_STATUSES_CONFIG[key] }))
+    .sort((a, b) => a.order - b.order);
+
 
 // =================================================================
 // COMPOSANTS UI
@@ -268,15 +314,9 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 // Composant pour afficher une carte de commande individuelle
 const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap }) => {
     // Détermine la couleur du badge de statut
-    const getStatusColor = (status) => {
-        switch (status) {
-            case ORDER_STATUSES.ORDERED.name: return 'bg-yellow-500';
-            case ORDER_STATUSES.RECEIVED_IN_STORE.name: return 'bg-green-500';
-            case ORDER_STATUSES.CLIENT_NOTIFIED.name: return 'bg-blue-500';
-            case ORDER_STATUSES.PICKED_UP.name: return 'bg-purple-500';
-            case ORDER_STATUSES.CANCELLED.name: return 'bg-red-500';
-            default: return 'bg-gray-500';
-        }
+    const getStatusColor = (statusLabel) => {
+        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel);
+        return statusConfig?.colorClass || 'bg-gray-500';
     };
 
     // Aide pour obtenir le nom d'affichage à partir de l'email
@@ -285,47 +325,42 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     };
 
     // Obtient la configuration du bouton pour le prochain statut
-    const getNextStatusButton = (currentStatus) => {
-        if (!isAdmin || currentStatus === ORDER_STATUSES.PICKED_UP.name || currentStatus === ORDER_STATUSES.CANCELLED.name) {
-            return null;
+    const getNextStatusButton = (currentStatusLabel) => {
+        // Trouvez la clé du statut actuel pour accéder à sa configuration
+        const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
+        const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
+
+        if (!isAdmin || !currentConfig || currentConfig.allowTransitionTo.length === 0) {
+            return null; // Pas de transition possible ou pas admin
         }
 
-        const currentStatusKey = Object.keys(ORDER_STATUSES).find(key => ORDER_STATUSES[key].name === currentStatus);
-        const currentStatusConfig = ORDER_STATUSES[currentStatusKey];
+        // Pour l'instant, on prend le premier statut dans allowTransitionTo, comme dans votre logique originale.
+        // Si vous voulez une sélection de plusieurs statuts, il faudrait une modale ou un autre UI.
+        const nextStatusKey = currentConfig.allowTransitionTo[0];
+        const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey];
 
-        if (currentStatusConfig && currentStatusConfig.next.length > 0) {
-            const nextStatusKey = currentStatusConfig.next[0];
-            const nextStatusName = ORDER_STATUSES[nextStatusKey].name;
-            let buttonColor = 'bg-gray-600';
-            let ButtonIcon = CheckCircle; 
-
-            switch (nextStatusKey) {
-                case 'RECEIVED_IN_STORE':
-                    buttonColor = 'bg-green-600';
-                    ButtonIcon = Truck;
-                    break;
-                case 'CLIENT_NOTIFIED':
-                    buttonColor = 'bg-blue-600';
-                    ButtonIcon = Bell;
-                    break;
-                case 'PICKED_UP':
-                    buttonColor = 'bg-purple-600';
-                    ButtonIcon = UserCheck;
-                    break;
-                default:
-                    break;
-            }
-
-            return (
-                <button
-                    onClick={() => onUpdateStatus(order.id, nextStatusName)}
-                    className={`flex-1 ${buttonColor} hover:${buttonColor.replace('600', '700')} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
-                >
-                    <ButtonIcon size={18} /> Marquer "{nextStatusName}"
-                </button>
-            );
+        if (!nextStatusConfig || nextStatusConfig.key === 'CANCELLED') {
+             // Ne pas proposer l'annulation comme "prochain statut" ici, car il y a un bouton spécifique.
+             // Ou si le prochain statut est un statut terminal sans suite (comme Annulé ou Retiré si on voulait l'inclure ici)
+             return null;
         }
-        return null;
+
+
+        const nextStatusLabel = nextStatusConfig.label;
+        const ButtonIcon = nextStatusConfig.icon;
+        // Extrait la couleur de base et construit une version foncée pour le hover
+        const buttonColorBase = nextStatusConfig.colorClass.split('-')[0] + '-' + nextStatusConfig.colorClass.split('-')[1];
+        const buttonColorHover = buttonColorBase.replace(/\d+$/, num => parseInt(num, 10) + 100); // Ex: bg-green-500 -> bg-green-600
+
+
+        return (
+            <button
+                onClick={() => onUpdateStatus(order.id, nextStatusLabel)} // Passez le label du nouveau statut
+                className={`flex-1 ${nextStatusConfig.colorClass.replace('bg-', 'bg-')} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
+            >
+                <ButtonIcon size={18} /> Marquer "{nextStatusLabel}"
+            </button>
+        );
     };
 
     return (
@@ -403,7 +438,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 
             <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
                 {getNextStatusButton(order.currentStatus)}
-                {isAdmin && order.currentStatus !== ORDER_STATUSES.CANCELLED.name && (
+                {isAdmin && order.currentStatus !== ORDER_STATUSES_CONFIG.CANCELLED.label && (
                     <>
                         <button
                             onClick={() => onEdit(order)}
@@ -757,7 +792,7 @@ export default function App() {
     
     const [toast, setToast] = useState(null);
 
-    // Mettre à jour le titre de la page
+    // Mettre à jour le titre de la page pour "AOD Tracker OS"
     useEffect(() => {
         document.title = "AOD Tracker OS";
     }, []);
@@ -956,13 +991,13 @@ export default function App() {
                     ...orderData,
                     orderedBy: userInfo,
                     orderDate: now,
-                    currentStatus: ORDER_STATUSES.ORDERED.name,
+                    currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label, // Utilisation du label ici
                     receivedBy: null,
                     receptionDate: null,
                     notifiedBy: null,
                     pickedUpBy: null,
                     pickedUpDate: null,
-                    history: [{ timestamp: now, action: `Commande ${ORDER_STATUSES.ORDERED.name.toLowerCase()}`, by: userInfo }]
+                    history: [{ timestamp: now, action: `Commande ${ORDER_STATUSES_CONFIG.ORDERED.label.toLowerCase()}`, by: userInfo }]
                 };
                 await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder);
                 showToast("Commande ajoutée avec succès !", 'success');
@@ -977,7 +1012,7 @@ export default function App() {
         }
     }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
 
-    const handleUpdateOrderStatus = useCallback(async (orderId, newStatusName) => {
+    const handleUpdateOrderStatus = useCallback(async (orderId, newStatusLabel) => { // Renommé en newStatusLabel
         if (!db || !currentUser || !isAdmin) {
             setDbError("Accès non autorisé pour cette action.");
             showToast("Accès non autorisé.", 'error');
@@ -989,27 +1024,39 @@ export default function App() {
         const now = new Date().toISOString();
 
         try {
-            let updateData = { currentStatus: newStatusName };
+            let updateData = { currentStatus: newStatusLabel }; // Utilisation du label directement
             let actionText = '';
 
-            switch (newStatusName) {
-                case ORDER_STATUSES.RECEIVED_IN_STORE.name:
+            const newStatusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === newStatusLabel);
+            if (!newStatusConfig) {
+                console.error("Statut non reconnu:", newStatusLabel);
+                setDbError("Statut de commande non valide.");
+                showToast("Statut de commande non valide.", 'error');
+                setIsSaving(false);
+                return;
+            }
+
+            switch (newStatusConfig.key) { // Utilisation de la clé pour la logique
+                case 'RECEIVED_IN_STORE':
                     updateData.receivedBy = userInfo;
                     updateData.receptionDate = now;
                     actionText = "Commande reçue et validée";
                     break;
-                case ORDER_STATUSES.CLIENT_NOTIFIED.name:
+                case 'CLIENT_NOTIFIED':
                     updateData.notifiedBy = userInfo;
                     updateData.notificationDate = now;
                     actionText = "Client prévenu ou averti";
                     break;
-                case ORDER_STATUSES.PICKED_UP.name:
+                case 'PICKED_UP':
                     updateData.pickedUpBy = userInfo;
                     updateData.pickedUpDate = now;
                     actionText = "Client a retiré son colis";
                     break;
+                case 'CANCELLED': // C'est maintenant géré par handleConfirmCancel, mais pour la cohérence
+                    actionText = "Commande annulée";
+                    break;
                 default:
-                    actionText = `Statut mis à jour: ${newStatusName}`;
+                    actionText = `Statut mis à jour: ${newStatusLabel}`;
             }
 
             const currentOrder = orders.find(order => order.id === orderId);
@@ -1021,9 +1068,9 @@ export default function App() {
             updateData.history = updatedHistory;
 
             await updateDoc(orderRef, updateData);
-            showToast(`Statut mis à jour en "${newStatusName}"`, 'success');
+            showToast(`Statut mis à jour en "${newStatusLabel}"`, 'success');
         } catch (e) {
-            console.error(`Error updating order status to ${newStatusName}:`, e);
+            console.error(`Error updating order status to ${newStatusLabel}:`, e);
             setDbError("Échec de la mise à jour du statut. Vérifiez la console.");
             showToast("Échec de la mise à jour du statut.", 'error');
         } finally {
@@ -1048,12 +1095,12 @@ export default function App() {
             const currentOrder = orders.find(order => order.id === orderToCancelId);
             const updatedHistory = [...(currentOrder?.history || []), {
                 timestamp: now,
-                action: `Commande ${ORDER_STATUSES.CANCELLED.name.toLowerCase()}`,
+                action: `Commande ${ORDER_STATUSES_CONFIG.CANCELLED.label.toLowerCase()}`,
                 by: userInfo
             }];
 
             await updateDoc(orderRef, {
-                currentStatus: ORDER_STATUSES.CANCELLED.name,
+                currentStatus: ORDER_STATUSES_CONFIG.CANCELLED.label, // Utilisation du label ici
                 history: updatedHistory
             });
             setOrderToCancelId(null);
@@ -1145,7 +1192,7 @@ export default function App() {
     if (!authReady) {
         return (
             <div className="bg-gray-900 min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" />
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" />
             </div>
         );
     }
@@ -1282,9 +1329,9 @@ export default function App() {
                                 className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer"
                             >
                                 <option value="All">Tous les statuts</option>
-                                {Object.values(ORDER_STATUSES).map(status => (
-                                    <option key={status.name} value={status.name}>
-                                        {status.name}
+                                {ORDER_STATUSES_ARRAY.map(status => (
+                                    <option key={status.key} value={status.label}> {/* Utilisez status.label ici */}
+                                        {status.label}
                                     </option>
                                 ))}
                             </select>
