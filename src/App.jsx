@@ -74,10 +74,8 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         return statusConfig?.colorClass || 'bg-gray-500';
     };
 
-    // Logique de correspondance améliorée pour être rétrocompatible
     const findStatusConfigByAction = (action) => {
         if (!action) return null;
-        // Trouve le statut en cherchant dans la description (nouvelles entrées) ou le label (anciennes entrées)
         return Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action || s.label === action);
     };
 
@@ -85,7 +83,6 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         if (!action) return History;
         if (action.startsWith('Retour au statut:')) return RefreshCcw;
         if (action === 'Commande modifiée') return Edit;
-        
         const statusConfig = findStatusConfigByAction(action);
         return statusConfig?.icon || CheckCircle;
     };
@@ -94,12 +91,10 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         if (!action) return 'text-gray-400';
         if (action.startsWith('Retour au statut:')) return 'text-gray-400';
         if (action === 'Commande modifiée') return 'text-purple-400';
-        
         const statusConfig = findStatusConfigByAction(action);
         if (statusConfig && statusConfig.colorClass) {
             return statusConfig.colorClass.replace('bg-', 'text-');
         }
-        
         return 'text-gray-400';
     };
 
@@ -212,7 +207,7 @@ export default function App() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
-    const [viewMode, setViewMode] = useState('active'); // 'active' ou 'archived'
+    const [viewMode, setViewMode] = useState('active');
 
     useEffect(() => { document.title = "AOD Tracker OS"; }, []);
 
@@ -256,19 +251,11 @@ export default function App() {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setOrders(fetchedOrders);
-            
             const usersFromOrders = fetchedOrders.reduce((acc, order) => {
-                if (order.orderedBy?.email) {
-                    acc[order.orderedBy.email] = { email: order.orderedBy.email, name: getUserDisplayName(order.orderedBy.email) };
-                }
-                order.history?.forEach(h => {
-                    if (h.by?.email) {
-                       acc[h.by.email] = { email: h.by.email, name: getUserDisplayName(h.by.email) };
-                    }
-                });
+                if (order.orderedBy?.email) { acc[order.orderedBy.email] = { email: order.orderedBy.email, name: getUserDisplayName(order.orderedBy.email) }; }
+                order.history?.forEach(h => { if (h.by?.email) { acc[h.by.email] = { email: h.by.email, name: getUserDisplayName(h.by.email) }; } });
                 return acc;
             }, {});
-
             setAllUsers(Object.values(usersFromOrders));
             setIsLoading(false);
             setDbError(null);
@@ -283,19 +270,14 @@ export default function App() {
 
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
-
-        // 1. Filtrer par mode de vue (actif ou archivé)
         if (viewMode === 'active') {
             currentOrders = currentOrders.filter(order => order.currentStatus !== ORDER_STATUSES_CONFIG.ARCHIVED.label);
-        } else { // viewMode === 'archived'
+        } else {
             currentOrders = currentOrders.filter(order => order.currentStatus === ORDER_STATUSES_CONFIG.ARCHIVED.label);
         }
-
-        // 2. Appliquer les autres filtres sur la liste pré-filtrée
         if (selectedStatusFilter !== 'All' && viewMode === 'active') { currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter); }
         if (selectedAdvisorFilter !== 'All') { currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); }
         if (searchTerm.trim()) { const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); currentOrders = currentOrders.filter(order => (order.clientFirstName?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientLastName?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientEmail?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientPhone?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.items?.some(item => item.itemName.toLowerCase().includes(lowerCaseSearchTerm))) || (order.receiptNumber?.toLowerCase().includes(lowerCaseSearchTerm)) ); }
-        
         return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
@@ -318,22 +300,14 @@ export default function App() {
         try {
             const orderToUpdate = orders.find(o => o.id === orderId);
             if (!orderToUpdate) throw new Error("Commande non trouvée");
-            
             const newStatusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === newStatusLabel);
             if (!newStatusConfig) throw new Error("Nouveau statut invalide");
-
             const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : newStatusConfig.description;
-            
             let updateData = { currentStatus: newStatusLabel };
-            // AJOUT DE LA DATE D'ARCHIVAGE
             if (newStatusLabel === ORDER_STATUSES_CONFIG.ARCHIVED.label) {
                 updateData.archivedAt = now;
             }
-
-            await updateDoc(orderRef, {
-                ...updateData,
-                history: [...(orderToUpdate.history || []), { timestamp: now, action: historyAction, by: userInfo }]
-            });
+            await updateDoc(orderRef, { ...updateData, history: [...(orderToUpdate.history || []), { timestamp: now, action: historyAction, by: userInfo }] });
             showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success');
         } catch (e) { console.error(e); showToast("Échec de la mise à jour.", 'error'); } finally { setIsSaving(false); }
     }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
@@ -404,7 +378,7 @@ export default function App() {
                 
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-6">
                     <button onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><PlusCircle size={20} /> Nouvelle Commande</button>
-                    <div className="flex-grow"></div> {/* Espaceur */}
+                    <div className="flex-grow"></div>
                     {viewMode === 'active' ? (
                         <button onClick={() => setViewMode('archived')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><Archive size={20} /> Consulter les Archives</button>
                     ) : (
