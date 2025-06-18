@@ -27,11 +27,11 @@ const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
 const ORDER_STATUSES_CONFIG = {
-    ORDERED:   { key: 'ORDERED',   label: 'Commandé', description: 'Commande passée',                colorClass: 'bg-yellow-500', icon: Package,   order: 1, allowTransitionTo: ['RECEIVED'],   allowTransitionFrom: [] },
-    RECEIVED:  { key: 'RECEIVED',  label: 'Reçu',     description: 'Article reçu en boutique',        colorClass: 'bg-green-500',  icon: Truck,     order: 2, allowTransitionTo: ['NOTIFIED'],   allowTransitionFrom: ['ORDERED'] },
-    NOTIFIED:  { key: 'NOTIFIED',  label: 'Prévenu',  description: 'Client prévenu de la disponibilité', colorClass: 'bg-blue-500',   icon: Bell,      order: 3, allowTransitionTo: ['PICKED_UP'],  allowTransitionFrom: ['RECEIVED'] },
-    PICKED_UP: { key: 'PICKED_UP', label: 'Retiré',   description: 'Colis retiré par le client',      colorClass: 'bg-purple-600', icon: UserCheck, order: 4, allowTransitionTo: ['ARCHIVED'],   allowTransitionFrom: ['NOTIFIED'] },
-    ARCHIVED:  { key: 'ARCHIVED',  label: 'Archivé',  description: 'Commande terminée et archivée',   colorClass: 'bg-gray-600',   icon: Archive,   order: 5, allowTransitionTo: [],           allowTransitionFrom: ['PICKED_UP'] }
+    ORDERED:   { key: 'ORDERED',   label: 'Commandé', description: 'Commande passée',                 colorClass: 'bg-yellow-500', icon: Package,   order: 1, allowTransitionTo: ['RECEIVED'],  allowTransitionFrom: [] },
+    RECEIVED:  { key: 'RECEIVED',  label: 'Reçu',     description: 'Article reçu en boutique',        colorClass: 'bg-green-500',  icon: Truck,     order: 2, allowTransitionTo: ['NOTIFIED'],  allowTransitionFrom: ['ORDERED'] },
+    NOTIFIED:  { key: 'NOTIFIED',  label: 'Prévenu',  description: 'Client prévenu de la disponibilité', colorClass: 'bg-blue-500',   icon: Bell,      order: 3, allowTransitionTo: ['PICKED_UP'], allowTransitionFrom: ['RECEIVED'] },
+    PICKED_UP: { key: 'PICKED_UP', label: 'Retiré',   description: 'Colis retiré par le client',      colorClass: 'bg-purple-600', icon: UserCheck, order: 4, allowTransitionTo: ['ARCHIVED'],  allowTransitionFrom: ['NOTIFIED'] },
+    ARCHIVED:  { key: 'ARCHIVED',  label: 'Archivé',  description: 'Commande terminée et archivée',   colorClass: 'bg-gray-600',   icon: Archive,   order: 5, allowTransitionTo: [],            allowTransitionFrom: ['PICKED_UP'] }
 };
 
 const ORDER_STATUSES_ARRAY = Object.values(ORDER_STATUSES_CONFIG).sort((a, b) => a.order - b.order);
@@ -130,7 +130,7 @@ const OrderHistoryModal = ({ order, onClose }) => {
 const RevertStatusModal = ({ onClose, onRevert, possibleStatuses }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">Retourner à une étape précédente ?</h3><p className="text-gray-400 text-sm mt-2">Quel statut souhaitez-vous ré-appliquer à cette commande ?</p></div><div className="mt-6 flex flex-col justify-center gap-3">{possibleStatuses.map(status => ( <button key={status.key} onClick={() => onRevert(status.label)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full flex items-center justify-center gap-2"><status.icon size={16} />{status.label}</button> ))}<div className="mt-6 flex justify-center"><button onClick={onClose} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button></div></div></div></div> );
 
 // =================================================================
-// COMPOSANT OrderCard AMÉLIORÉ
+// COMPOSANT OrderCard AMÉLIORÉ (avec historique inversé)
 // =================================================================
 const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, onShowRevertModal }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -138,8 +138,66 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     const getNextStatusButton = (currentStatusLabel) => { const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === currentStatusLabel); if (!currentConfig || currentConfig.allowTransitionTo.length === 0) return null; const nextStatusKey = currentConfig.allowTransitionTo[0]; const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey]; if (!nextStatusConfig) return null; const nextStatusLabel = nextStatusConfig.label; const ButtonIcon = nextStatusConfig.icon; const buttonColorBase = nextStatusConfig.colorClass; const buttonColorHover = buttonColorBase.includes('600') ? buttonColorBase.replace('600', '700') : buttonColorBase.replace('500', '600'); return ( <button onClick={() => onUpdateStatus(order.id, nextStatusLabel)} className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}><ButtonIcon size={18} /> Marquer "{nextStatusLabel}"</button> ); };
     const getRevertStatusButton = () => { if (!isAdmin) return null; const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === order.currentStatus); if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) return null; return ( <button onClick={() => onShowRevertModal(order)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><Undo2 size={16} /> Retour</button> ); };
     const itemsSummary = order.items && order.items.length > 0 ? `${order.items[0].itemName}${order.items.length > 1 ? ` (+ ${order.items.length - 1} autre${order.items.length > 2 ? 's' : ''})` : ''}` : "Aucun article";
-    return ( <div className="bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:shadow-2xl hover:ring-2 hover:ring-blue-500/50"><div className="flex justify-between items-center p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={() => setIsOpen(!isOpen)}><div><h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3><p className="text-gray-400 text-sm mt-1">{itemsSummary}</p></div><div className="flex items-center gap-3"><span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>{order.currentStatus}</span><ChevronDown size={24} className={`text-gray-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`} /></div></div><div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}><div className="p-4 sm:p-6 border-t border-gray-700">{order.clientEmail && (<p className="text-gray-300 text-sm flex items-center gap-2 mb-1"><Mail size={16} /> {order.clientEmail}</p>)}{order.clientPhone && (<p className="text-gray-300 text-sm flex items-center gap-2 mb-2"><Phone size={16} /> {order.clientPhone}</p>)}<hr className="border-gray-700 my-4" /><h4 className="text-md font-semibold text-gray-300 mb-2">Détail des articles :</h4><ul className="list-disc list-inside text-gray-300 mb-2 pl-4">{order.items?.map((item, idx) => (<li key={idx} className="text-sm"><span className="font-semibold">{item.itemName}</span> (Qté: {item.quantity})</li>))}</ul>{order.receiptNumber && (<p className="text-gray-300 text-sm flex items-center gap-2 mt-3"><ReceiptText size={16} /> <span className="font-semibold">Ticket:</span> {order.receiptNumber}</p>)}{order.orderNotes && (<p className="text-gray-400 text-sm italic mt-3 break-words"><span className="font-semibold">Notes:</span> {order.orderNotes}</p>)}<div className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-700 space-y-2">{order.history && order.history.length > 0 ? (order.history.map((event, index) => { const Icon = getIconForHistoryAction(event.action); const colorClass = getColorClassForHistoryAction(event.action); return ( <div key={index} className="flex items-center"><Icon className={`mr-2 h-4 w-4 ${colorClass} flex-shrink-0`} /><p><span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div> ); })) : (<div className="flex items-center"><Package className="mr-2 h-4 w-4 text-yellow-500 flex-shrink-0" /><p>Commandé par <span className="font-medium text-white">{getUserDisplayName(order.orderedBy?.email)}</span> le {new Date(order.orderDate).toLocaleDateString('fr-FR')}</p></div>)}</div><div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">{getNextStatusButton(order.currentStatus)}{getRevertStatusButton()}<button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>{isAdmin && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}{isAdmin && <button onClick={() => onDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}</div></div></div></div> );
+    
+    return ( 
+        <div className="bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:shadow-2xl hover:ring-2 hover:ring-blue-500/50">
+            <div className="flex justify-between items-center p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={() => setIsOpen(!isOpen)}>
+                <div>
+                    <h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3>
+                    <p className="text-gray-400 text-sm mt-1">{itemsSummary}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>{order.currentStatus}</span>
+                    <ChevronDown size={24} className={`text-gray-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`} />
+                </div>
+            </div>
+            <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
+                <div className="p-4 sm:p-6 border-t border-gray-700">
+                    {order.clientEmail && (<p className="text-gray-300 text-sm flex items-center gap-2 mb-1"><Mail size={16} /> {order.clientEmail}</p>)}
+                    {order.clientPhone && (<p className="text-gray-300 text-sm flex items-center gap-2 mb-2"><Phone size={16} /> {order.clientPhone}</p>)}
+                    <hr className="border-gray-700 my-4" />
+                    <h4 className="text-md font-semibold text-gray-300 mb-2">Détail des articles :</h4>
+                    <ul className="list-disc list-inside text-gray-300 mb-2 pl-4">
+                        {order.items?.map((item, idx) => (<li key={idx} className="text-sm"><span className="font-semibold">{item.itemName}</span> (Qté: {item.quantity})</li>))}
+                    </ul>
+                    {order.receiptNumber && (<p className="text-gray-300 text-sm flex items-center gap-2 mt-3"><ReceiptText size={16} /> <span className="font-semibold">Ticket:</span> {order.receiptNumber}</p>)}
+                    {order.orderNotes && (<p className="text-gray-400 text-sm italic mt-3 break-words"><span className="font-semibold">Notes:</span> {order.orderNotes}</p>)}
+                    
+                    <div className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-700 space-y-2">
+                        {order.history && order.history.length > 0 ? (
+                            order.history.slice().reverse().map((event, index) => {
+                                const Icon = getIconForHistoryAction(event.action);
+                                const colorClass = getColorClassForHistoryAction(event.action);
+                                return ( 
+                                    <div key={index} className="flex items-center">
+                                        <Icon className={`mr-2 h-4 w-4 ${colorClass} flex-shrink-0`} />
+                                        <p>
+                                            <span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div> 
+                                );
+                            })
+                        ) : (
+                            <div className="flex items-center">
+                                <Package className="mr-2 h-4 w-4 text-yellow-500 flex-shrink-0" />
+                                <p>Commandé par <span className="font-medium text-white">{getUserDisplayName(order.orderedBy?.email)}</span> le {new Date(order.orderDate).toLocaleDateString('fr-FR')}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
+                        {getNextStatusButton(order.currentStatus)}
+                        {getRevertStatusButton()}
+                        <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
+                        {isAdmin && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
+                        {isAdmin && <button onClick={() => onDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}
+                    </div>
+                </div>
+            </div>
+        </div> 
+    );
 };
+
 
 // =================================================================
 // COMPOSANT PRINCIPAL : App
@@ -349,11 +407,11 @@ export default function App() {
 
                 <div className="bg-gray-800/50 rounded-2xl p-4 mb-8">
                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="relative flex-grow">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
-                        </div>
-                        <div className="relative"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}><option value="All">Tous les statuts</option>{ORDER_STATUSES_ARRAY.filter(s => s.key !== 'ARCHIVED').map(status => (<option key={status.key} value={status.label}>{status.label}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                        <div className="relative"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                         <div className="relative flex-grow">
+                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
+                         </div>
+                         <div className="relative"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}><option value="All">Tous les statuts</option>{ORDER_STATUSES_ARRAY.filter(s => s.key !== 'ARCHIVED').map(status => (<option key={status.key} value={status.label}>{status.label}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                         <div className="relative"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
                     </div>
                 </div>
 
