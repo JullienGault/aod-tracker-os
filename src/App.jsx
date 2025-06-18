@@ -7,7 +7,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 
 // Importations des icônes Lucide React
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw, Archive
 } from 'lucide-react';
 
 // =================================================================
@@ -27,15 +27,17 @@ const firebaseConfig = {
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
+// NOUVELLE CONFIGURATION DES STATUTS
 const ORDER_STATUSES_CONFIG = {
-    ORDERED: { label: 'Commandé', description: 'La commande a été passée et est en attente de réception.', colorClass: 'bg-yellow-500', icon: Package, order: 1, allowTransitionTo: ['RECEIVED_IN_STORE', 'CANCELLED'], allowTransitionFrom: [] },
-    RECEIVED_IN_STORE: { label: 'Reçu en boutique', description: 'L\'article a été reçu en magasin.', colorClass: 'bg-green-500', icon: Truck, order: 2, allowTransitionTo: ['CLIENT_NOTIFIED', 'CANCELLED'], allowTransitionFrom: ['ORDERED'] },
-    CLIENT_NOTIFIED: { label: 'Client prévenu', description: 'Le client a été informé que sa commande est disponible.', colorClass: 'bg-blue-500', icon: Bell, order: 3, allowTransitionTo: ['PICKED_UP', 'CANCELLED'], allowTransitionFrom: ['RECEIVED_IN_STORE'] },
-    PICKED_UP: { label: 'Client a retiré', description: 'Le client a récupéré sa commande.', colorClass: 'bg-purple-600', icon: UserCheck, order: 4, allowTransitionTo: [], allowTransitionFrom: ['CLIENT_NOTIFIED'] },
-    CANCELLED: { label: 'Annulée', description: 'La commande a été annulée.', colorClass: 'bg-red-500', icon: X, order: 5, allowTransitionTo: [], allowTransitionFrom: ['ORDERED', 'RECEIVED_IN_STORE', 'CLIENT_NOTIFIED', 'PICKED_UP'] }
+    ORDERED:   { key: 'ORDERED',   label: 'Commandé', description: 'Commande passée',                colorClass: 'bg-yellow-500', icon: Package,   order: 1, allowTransitionTo: ['RECEIVED'],   allowTransitionFrom: [] },
+    RECEIVED:  { key: 'RECEIVED',  label: 'Reçu',     description: 'Article reçu en boutique',        colorClass: 'bg-green-500',  icon: Truck,     order: 2, allowTransitionTo: ['NOTIFIED'],   allowTransitionFrom: ['ORDERED'] },
+    NOTIFIED:  { key: 'NOTIFIED',  label: 'Prévenu',  description: 'Client prévenu de la disponibilité', colorClass: 'bg-blue-500',   icon: Bell,      order: 3, allowTransitionTo: ['PICKED_UP'],  allowTransitionFrom: ['RECEIVED'] },
+    PICKED_UP: { key: 'PICKED_UP', label: 'Retiré',   description: 'Colis retiré par le client',      colorClass: 'bg-purple-600', icon: UserCheck, order: 4, allowTransitionTo: ['ARCHIVED'],   allowTransitionFrom: ['NOTIFIED'] },
+    ARCHIVED:  { key: 'ARCHIVED',  label: 'Archivé',  description: 'Commande terminée et archivée',   colorClass: 'bg-gray-600',   icon: Archive,   order: 5, allowTransitionTo: [],           allowTransitionFrom: ['PICKED_UP'] }
 };
 
-const ORDER_STATUSES_ARRAY = Object.keys(ORDER_STATUSES_CONFIG).map(key => ({ key, ...ORDER_STATUSES_CONFIG[key] })).sort((a, b) => a.order - b.order);
+
+const ORDER_STATUSES_ARRAY = Object.values(ORDER_STATUSES_CONFIG).sort((a, b) => a.order - b.order);
 
 // Fonction pour extraire et capitaliser le prénom depuis l'email
 const getUserDisplayName = (email) => {
@@ -73,46 +75,40 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 
     const getIconForHistoryAction = (action) => {
         if (!action) return History;
-
         if (action.startsWith('Retour au statut:')) return RefreshCcw;
         if (action === 'Commande modifiée') return Edit;
-        if (action.toLowerCase().includes('commandé')) return Package;
 
-        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === action);
+        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action);
         return statusConfig?.icon || CheckCircle;
     };
 
-    // NOUVELLE FONCTION POUR OBTENIR LA COULEUR DE L'ICÔNE
     const getColorClassForHistoryAction = (action) => {
         if (!action) return 'text-gray-400';
-
-        // Gérer les cas spéciaux
         if (action.startsWith('Retour au statut:')) return 'text-gray-400';
         if (action === 'Commande modifiée') return 'text-purple-400';
         
-        // Trouver le statut correspondant dans la configuration
-        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === action || `Commande ${s.label.toLowerCase()}` === action);
+        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action);
         if (statusConfig && statusConfig.colorClass) {
-            // Convertir la couleur de fond (bg-...) en couleur de texte (text-...)
             return statusConfig.colorClass.replace('bg-', 'text-');
         }
         
-        // Couleur par défaut
         return 'text-gray-400';
     };
-
 
     const getNextStatusButton = (currentStatusLabel) => {
         const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
         const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
         if (!currentConfig || currentConfig.allowTransitionTo.length === 0) return null;
+        
         const nextStatusKey = currentConfig.allowTransitionTo[0];
         const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey];
-        if (!nextStatusConfig || nextStatusConfig.key === 'CANCELLED') return null;
+        if (!nextStatusConfig) return null;
+
         const nextStatusLabel = nextStatusConfig.label;
         const ButtonIcon = nextStatusConfig.icon;
         const buttonColorBase = nextStatusConfig.colorClass;
-        const buttonColorHover = buttonColorBase.replace('500', '600').replace('600', '700');
+        const buttonColorHover = buttonColorBase.includes('600') ? buttonColorBase.replace('600', '700') : buttonColorBase.replace('500', '600');
+        
         return ( <button onClick={() => onUpdateStatus(order.id, nextStatusLabel)} className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}><ButtonIcon size={18} /> Marquer "{nextStatusLabel}"</button> );
     };
 
@@ -121,7 +117,8 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
         const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
         if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) return null;
-        return ( <div className="relative group"><button className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><RefreshCcw size={18} /> Revenir à...</button><div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">{currentConfig.allowTransitionFrom.map(prevStatusKey => { const prevStatusConfig = ORDER_STATUSES_CONFIG[prevStatusKey]; if (!prevStatusConfig) return null; return ( <button key={prevStatusKey} onClick={() => onRevertStatus(order.id, prevStatusConfig.label)} className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 rounded-lg flex items-center gap-2"><prevStatusConfig.icon size={16} /> {prevStatusConfig.label}</button> ); })}</div></div> );
+        
+        return ( <div className="relative group"><button className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><RefreshCcw size={18} /> Revenir à...</button><div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">{currentConfig.allowTransitionFrom.map(prevStatusKey => { const prevStatusConfig = ORDER_STATUSES_CONFIG[prevStatusKey]; if (!prevStatusConfig) return null; return ( <button key={prevStatusKey} onClick={() => onRevertStatus(order.id, prevStatusConfig.label)} className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 rounded-lg flex items-center gap-2"><prevStatusConfig.icon size={16} /> {prevStatusConfig.label}</button> ); })}</div></div> );
     };
     
     const itemsSummary = order.items && order.items.length > 0
@@ -154,7 +151,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         {order.history && order.history.length > 0 ? (
                             order.history.map((event, index) => {
                                 const Icon = getIconForHistoryAction(event.action);
-                                const colorClass = getColorClassForHistoryAction(event.action); // Utiliser la nouvelle fonction
+                                const colorClass = getColorClassForHistoryAction(event.action);
                                 return (
                                     <div key={index} className="flex items-center">
                                         <Icon className={`mr-2 h-4 w-4 ${colorClass} flex-shrink-0`} />
@@ -311,7 +308,7 @@ export default function App() {
         };
     }, [currentUser]);
 
-    const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) { showToast("Vous devez être connecté.", 'error'); return; } setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), { ...orderData, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] }); showToast("Commande modifiée !", 'success'); } else { await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), { ...orderData, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label, history: [{ timestamp: now, action: `Commande ${ORDER_STATUSES_CONFIG.ORDERED.label.toLowerCase()}`, by: userInfo }] }); showToast("Commande ajoutée !", 'success'); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { showToast("Échec de l'enregistrement.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
+    const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) { showToast("Vous devez être connecté.", 'error'); return; } setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), { ...orderData, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] }); showToast("Commande modifiée !", 'success'); } else { await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), { ...orderData, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label, history: [{ timestamp: now, action: ORDER_STATUSES_CONFIG.ORDERED.description, by: userInfo }] }); showToast("Commande ajoutée !", 'success'); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { showToast("Échec de l'enregistrement.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
     
     const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => {
         if (!db || !currentUser) return;
@@ -323,11 +320,13 @@ export default function App() {
             const orderToUpdate = orders.find(o => o.id === orderId);
             if (!orderToUpdate) throw new Error("Commande non trouvée");
             
-            const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : newStatusLabel;
+            const newStatusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === newStatusLabel);
+            if (!newStatusConfig) throw new Error("Nouveau statut invalide");
+
+            const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : newStatusConfig.description;
             
-            let updateData = { currentStatus: newStatusLabel };
             await updateDoc(orderRef, {
-                ...updateData,
+                currentStatus: newStatusLabel,
                 history: [...(orderToUpdate.history || []), { timestamp: now, action: historyAction, by: userInfo }]
             });
             showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success');
