@@ -7,7 +7,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 
 // Importations des icônes Lucide React
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw, Archive
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw, Archive, Undo2
 } from 'lucide-react';
 
 // =================================================================
@@ -61,11 +61,35 @@ const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 
 const LoginForm = ({ onLogin, error, onClose }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 relative animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer la fenêtre de connexion" className="absolute top-2 right-2 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion</h2><form onSubmit={handleSubmit} className="space-y-6"><div><input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><input type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && <p className="text-red-400 text-sm text-center">{error}</p>}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div></div> ); };
 const OrderHistoryModal = ({ order, onClose }) => { return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Historique: {order.items?.[0]?.itemName || 'Article(s)'}</h2><div className="space-y-4">{order.history && order.history.length > 0 ? (order.history.slice().reverse().map((event, index) => ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4"><Calendar size={20} className="text-blue-400 flex-shrink-0 sm:mt-1" /><div><p className="text-white font-medium">{event.action}</p><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>{event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}</div></div> ))) : (<p className="text-gray-400 text-center">Aucun historique disponible.</p>)}</div></div></div> ); };
 
+// NOUVEAU COMPOSANT : FENÊTRE MODALE POUR LE RETOUR EN ARRIÈRE
+const RevertStatusModal = ({ onClose, onRevert, possibleStatuses }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center">
+                <Undo2 className="mx-auto h-12 w-12 text-blue-400" />
+                <h3 className="mt-4 text-xl font-medium text-white">Retourner à une étape précédente ?</h3>
+                <p className="text-gray-400 text-sm mt-2">Quel statut souhaitez-vous ré-appliquer à cette commande ?</p>
+            </div>
+            <div className="mt-6 flex flex-col justify-center gap-3">
+                {possibleStatuses.map(status => (
+                    <button key={status.key} onClick={() => onRevert(status.label)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full flex items-center justify-center gap-2">
+                        <status.icon size={16} />
+                        {status.label}
+                    </button>
+                ))}
+            </div>
+             <div className="mt-6 flex justify-center">
+                 <button onClick={onClose} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button>
+            </div>
+        </div>
+    </div>
+);
+
 
 // =================================================================
 // COMPOSANT OrderCard AMÉLIORÉ
 // =================================================================
-const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, onRevertStatus }) => {
+const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, onShowRevertModal }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     const getStatusColor = (statusLabel) => {
@@ -96,8 +120,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     };
 
     const getNextStatusButton = (currentStatusLabel) => {
-        const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
-        const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
+        const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === currentStatusLabel);
         if (!currentConfig || currentConfig.allowTransitionTo.length === 0) return null;
         
         const nextStatusKey = currentConfig.allowTransitionTo[0];
@@ -112,13 +135,16 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         return ( <button onClick={() => onUpdateStatus(order.id, nextStatusLabel)} className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}><ButtonIcon size={18} /> Marquer "{nextStatusLabel}"</button> );
     };
 
-    const getRevertStatusButtons = (currentStatusLabel) => {
+    const getRevertStatusButton = (currentStatusLabel) => {
         if (!isAdmin) return null;
-        const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
-        const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
+        const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === currentStatusLabel);
         if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) return null;
         
-        return ( <div className="relative group"><button className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><RefreshCcw size={18} /> Revenir à...</button><div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">{currentConfig.allowTransitionFrom.map(prevStatusKey => { const prevStatusConfig = ORDER_STATUSES_CONFIG[prevStatusKey]; if (!prevStatusConfig) return null; return ( <button key={prevStatusKey} onClick={() => onRevertStatus(order.id, prevStatusConfig.label)} className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 rounded-lg flex items-center gap-2"><prevStatusConfig.icon size={16} /> {prevStatusConfig.label}</button> ); })}</div></div> );
+        return (
+            <button onClick={() => onShowRevertModal(order)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
+                <Undo2 size={16} /> Retour
+            </button>
+        );
     };
     
     const itemsSummary = order.items && order.items.length > 0
@@ -171,7 +197,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 
                     <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
                         {getNextStatusButton(order.currentStatus)}
-                        {isAdmin && getRevertStatusButtons(order.currentStatus)}
+                        {getRevertStatusButton(order.currentStatus)}
                         <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
                         {isAdmin && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
                         {isAdmin && <button onClick={() => onDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}
@@ -207,6 +233,8 @@ export default function App() {
     const [orderToUpdateStatusAdvisor, setOrderToUpdateStatusAdvisor] = useState(null);
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
+    const [showRevertModal, setShowRevertModal] = useState(false);
+    const [orderToRevert, setOrderToRevert] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
@@ -357,8 +385,30 @@ export default function App() {
 
     const handleDeleteOrder = useCallback((id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }, []);
     const handleConfirmDelete = useCallback(async () => { if (!db || !isAdmin || !orderToDeleteId) { showToast("Action non autorisée.", 'error'); return; } setIsSaving(true); try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId)); showToast("Commande supprimée.", 'success'); } catch (e) { showToast("Échec de la suppression.", 'error'); } finally { setShowConfirmDelete(false); setOrderToDeleteId(null); setIsSaving(false); } }, [db, isAdmin, orderToDeleteId, showToast]);
+    
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
     const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
+    
+    // NOUVELLES FONCTIONS POUR LA MODALE DE RETOUR
+    const handleShowRevertModal = useCallback((order) => {
+        setOrderToRevert(order);
+        setShowRevertModal(true);
+    }, []);
+
+    const handleRevertStatus = useCallback((newStatusLabel) => {
+        if (!orderToRevert) return;
+        updateOrderStatus(orderToRevert.id, newStatusLabel, true);
+        setShowRevertModal(false);
+        setOrderToRevert(null);
+    }, [orderToRevert, updateOrderStatus]);
+
+    const possibleRevertStatuses = useMemo(() => {
+        if (!orderToRevert) return [];
+        const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === orderToRevert.currentStatus);
+        const prevStatusKeys = currentConfig?.allowTransitionFrom || [];
+        return prevStatusKeys.map(key => ORDER_STATUSES_CONFIG[key]).filter(Boolean);
+    }, [orderToRevert]);
+
     
     if (!authReady) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /></div> ); }
     if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} onClose={() => { if(currentUser) setShowLogin(false); }} /></div> ); }
@@ -371,6 +421,13 @@ export default function App() {
             {showConfirmAdvisorChange && ( <ConfirmationModalAdvisor message={`Confirmer le passage au statut "${orderToUpdateStatusAdvisor?.newStatusLabel}" ?`} onConfirm={confirmAdvisorUpdateStatus} onCancel={() => setShowConfirmAdvisorChange(false)} /> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
+            {showRevertModal && (
+                <RevertStatusModal
+                    onClose={() => setShowRevertModal(false)}
+                    onRevert={handleRevertStatus}
+                    possibleStatuses={possibleRevertStatuses}
+                />
+            )}
 
             <div className="max-w-4xl mx-auto px-2 sm:px-4 lg:px-6"> 
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
@@ -413,7 +470,7 @@ export default function App() {
                 ) : (
                     <div className="grid grid-cols-1 gap-6 animate-fade-in">
                         {filteredAndSortedOrders.map((order) => (
-                            <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} onEdit={handleEditOrder} onDelete={handleDeleteOrder} isAdmin={isAdmin} onShowHistory={handleShowOrderHistory} onRevertStatus={(orderId, newStatus) => updateOrderStatus(orderId, newStatus, true)} />
+                            <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} onEdit={handleEditOrder} onDelete={handleDeleteOrder} isAdmin={isAdmin} onShowHistory={handleShowOrderHistory} onShowRevertModal={handleShowRevertModal} />
                         ))}
                     </div>
                 )}
