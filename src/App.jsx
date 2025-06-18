@@ -17,7 +17,7 @@ import {
 // Configuration Firebase pour l'initialisation de l'application.
 // Ces valeurs sont spécifiques à votre projet Firebase.
 const firebaseConfig = {
-    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg", // Clé API corrigée ici
+    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg", // Clé API à vérifier
     authDomain: "aod-tracker-os.firebaseapp.com",
     projectId: "aod-tracker-os",
     storageBucket: "aod-tracker-os.appspot.com",
@@ -32,10 +32,8 @@ const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 // Email de l'administrateur principal. Ce compte a des privilèges étendus.
 const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
-// Définition des statuts de commande : nom affichable, description, style, icône, ordre de progression,
-// et transitions autorisées (vers l'avant et vers l'arrière pour les admins).
+// Définition des statuts de commande
 const ORDER_STATUSES_CONFIG = {
-    // Statut initial: la commande est enregistrée et attend sa réception.
     ORDERED: {
         label: 'Commandé',
         description: 'La commande a été passée et est en attente de réception.',
@@ -45,7 +43,6 @@ const ORDER_STATUSES_CONFIG = {
         allowTransitionTo: ['RECEIVED_IN_STORE', 'CANCELLED'],
         allowTransitionFrom: []
     },
-    // Statut intermédiaire: l'article est arrivé en boutique.
     RECEIVED_IN_STORE: {
         label: 'Reçu en boutique',
         description: 'L\'article a été reçu en magasin et est prêt à être traité.',
@@ -55,7 +52,6 @@ const ORDER_STATUSES_CONFIG = {
         allowTransitionTo: ['CLIENT_NOTIFIED', 'CANCELLED'],
         allowTransitionFrom: ['ORDERED']
     },
-    // Statut intermédiaire: le client a été informé de la disponibilité de sa commande.
     CLIENT_NOTIFIED: {
         label: 'Client prévenu',
         description: 'Le client a été informé que sa commande est disponible.',
@@ -65,7 +61,6 @@ const ORDER_STATUSES_CONFIG = {
         allowTransitionTo: ['PICKED_UP', 'CANCELLED'],
         allowTransitionFrom: ['RECEIVED_IN_STORE']
     },
-    // Statut terminal de succès: le client a retiré sa commande.
     PICKED_UP: {
         label: 'Client a retiré',
         description: 'Le client a récupéré sa commande.',
@@ -75,7 +70,6 @@ const ORDER_STATUSES_CONFIG = {
         allowTransitionTo: [],
         allowTransitionFrom: ['CLIENT_NOTIFIED']
     },
-    // Statut terminal d'échec ou d'annulation: la commande est annulée.
     CANCELLED: {
         label: 'Annulée',
         description: 'La commande a été annulée.',
@@ -87,7 +81,6 @@ const ORDER_STATUSES_CONFIG = {
     }
 };
 
-// Tableau des statuts de commande triés par ordre de progression, pour faciliter l'itération.
 const ORDER_STATUSES_ARRAY = Object.keys(ORDER_STATUSES_CONFIG)
     .map(key => ({ key, ...ORDER_STATUSES_CONFIG[key] }))
     .sort((a, b) => a.order - b.order);
@@ -97,7 +90,6 @@ const ORDER_STATUSES_ARRAY = Object.keys(ORDER_STATUSES_CONFIG)
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
 
-// Styles d'animation pour les transitions fluides
 const AnimationStyles = () => (
     <style>{`
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -126,7 +118,6 @@ const AnimationStyles = () => (
         opacity: 1;
         visibility: visible;
       }
-      /* Custom scrollbar for modals */
       .custom-scrollbar::-webkit-scrollbar {
         width: 8px;
       }
@@ -144,7 +135,6 @@ const AnimationStyles = () => (
     `}</style>
 );
 
-// Composant Tooltip pour afficher des informations au survol
 const Tooltip = ({ children, text }) => {
     return (
         <div className="relative inline-block group">
@@ -158,7 +148,6 @@ const Tooltip = ({ children, text }) => {
     );
 };
 
-// Composant Toast pour les notifications temporaires
 const Toast = ({ message, type, onClose }) => {
     const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
     const Icon = type === 'success' ? Check : AlertTriangle;
@@ -174,7 +163,6 @@ const Toast = ({ message, type, onClose }) => {
     );
 };
 
-// Formulaire pour créer ou modifier une commande
 const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
     const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
@@ -185,25 +173,21 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
     const [formError, setFormError] = useState(null);
 
-    // Gère les changements sur les champs d'un article
     const handleItemChange = useCallback((index, field, value) => {
         const newItems = [...items];
         newItems[index][field] = value;
         setItems(newItems);
     }, [items]);
 
-    // Ajoute un nouvel article au formulaire
     const handleAddItem = useCallback(() => {
         setItems([...items, { itemName: '', quantity: '' }]);
     }, [items]);
 
-    // Supprime un article du formulaire
     const handleRemoveItem = useCallback((index) => {
         const newItems = items.filter((_, i) => i !== index);
         setItems(newItems);
     }, [items]);
 
-    // Gère la soumission du formulaire de commande
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
         setFormError(null);
@@ -323,52 +307,41 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     );
 };
 
-// Composant pour afficher une carte de commande individuelle
 const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap, onRevertStatus }) => {
-    // État local pour gérer l'ouverture/fermeture de la carte
-    const [isOpen, setIsOpen] = useState(false); // Initialement fermée
+    const [isOpen, setIsOpen] = useState(false);
 
-    // Détermine la couleur du badge de statut
     const getStatusColor = (statusLabel) => {
         const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel);
         return statusConfig?.colorClass || 'bg-gray-500';
     };
 
-    // Aide pour obtenir le nom d'affichage à partir de l'email
     const getDisplayName = (email) => {
         return advisorsMap[email.toLowerCase()]?.name || email;
     };
 
-    // Obtient la configuration du bouton pour le prochain statut
     const getNextStatusButton = (currentStatusLabel) => {
-        // Trouvez la clé du statut actuel pour accéder à sa configuration
         const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
         const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
 
-        // Un conseiller peut avancer, un admin aussi (mais l'admin a d'autres options)
         if (!currentConfig || currentConfig.allowTransitionTo.length === 0) {
             return null;
         }
-
-        // Pour l'instant, on prend le premier statut dans allowTransitionTo, comme dans votre logique originale.
+        
         const nextStatusKey = currentConfig.allowTransitionTo[0];
         const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey];
 
-        // Ne pas proposer l'annulation comme "prochain statut" ici si un bouton d'annulation existe déjà
         if (!nextStatusConfig || nextStatusConfig.key === 'CANCELLED') {
              return null;
         }
         
         const nextStatusLabel = nextStatusConfig.label;
         const ButtonIcon = nextStatusConfig.icon;
-        // Extrait la couleur de base et construit une version foncée pour le hover
         const buttonColorBase = nextStatusConfig.colorClass.replace('bg-', 'bg-');
-        const buttonColorHover = buttonColorBase.replace(/\d+$/, num => parseInt(num, 10) + 100); // Ex: bg-green-500 -> bg-green-600
-
+        const buttonColorHover = buttonColorBase.replace(/\d+$/, num => parseInt(num, 10) + 100);
 
         return (
             <button
-                onClick={() => onUpdateStatus(order.id, nextStatusLabel)} // Passez le label du nouveau statut
+                onClick={() => onUpdateStatus(order.id, nextStatusLabel)}
                 className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
             >
                 <ButtonIcon size={18} /> Marquer "{nextStatusLabel}"
@@ -376,7 +349,6 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         );
     };
 
-    // Boutons de retour de statut pour l'admin
     const getRevertStatusButtons = (currentStatusLabel) => {
         if (!isAdmin) return null;
 
@@ -471,7 +443,6 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         <p className="flex items-center gap-2 mb-1">
                             <User size={16} /> Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email || 'N/A')}</span>
                         </p>
-                        {/* Affichage conditionnel des informations de statut : corrigé ici */}
                         {order.receivedBy && order.receptionDate && ORDER_STATUSES_CONFIG.RECEIVED_IN_STORE.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
                             <p className="flex items-center gap-2 mb-1">
                                 <CheckCircle size={16} className="text-green-400" /> Reçu par <span className="font-medium text-white">{getDisplayName(order.receivedBy?.email || 'N/A')}</span>
@@ -524,10 +495,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     );
 };
 
-
-// Modale pour afficher l'historique d'une commande
 const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
-    // Aide pour obtenir le nom d'affichage à partir de l'email
     const getDisplayName = (email) => {
         return advisorsMap[email.toLowerCase()]?.name || email;
     };
@@ -562,7 +530,6 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
     );
 };
 
-// Composant de modale de confirmation pour les actions critiques (Admin)
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
         <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0">
@@ -578,7 +545,6 @@ const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confir
     </div>
 );
 
-// Nouvelle modale de confirmation pour les conseillers
 const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler' }) => (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
         <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0">
@@ -595,8 +561,6 @@ const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 
     </div>
 );
 
-
-// Composant de formulaire de connexion
 const LoginForm = ({ onLogin, error, onClose }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -620,7 +584,6 @@ const LoginForm = ({ onLogin, error, onClose }) => {
     );
 };
 
-// Composant de gestion des conseillers (nouvelle fonctionnalité)
 const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -630,14 +593,10 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
     const [formError, setFormError] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Placeholder pour la fonction showToast du composant parent
     const showToast = useCallback((message, type) => {
-        // Cette fonction sera remplacée par le vrai showToast du composant App via une prop
-        // Pour l'instant, elle se contente d'afficher dans la console.
         console.log(`Toast (${type}): ${message}`);
     }, []);
 
-    // Gère l'ajout ou la mise à jour d'un conseiller
     const handleAddUpdateAdvisor = async (e) => {
         e.preventDefault();
         setFormError(null);
@@ -651,25 +610,20 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         }
         setIsSaving(true);
         try {
-            if (!editAdvisorId) { // Création d'un nouvel utilisateur dans Firebase Auth
+            if (!editAdvisorId) { // Création
                 const createdUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-
-                // Sauvegarde du profil du conseiller dans Firestore
                 await onSaveAdvisor({
-                    id: email.toLowerCase(), // L'ID du document Firestore sera l'email
+                    id: email.toLowerCase(),
                     name: name.trim(),
                     email: email.trim().toLowerCase(),
                     role: role,
                 });
-
-                // Déconnexion immédiate du nouvel utilisateur (pour éviter le "cafouillage")
                 await auth.signOut();
-
                 setFormError(null);
                 setName(''); setEmail(''); setPassword(''); setRole('counselor'); setEditAdvisorId(null);
                 showToast("Conseiller créé. Veuillez vous reconnecter en tant qu'administrateur.", 'success');
-                onClose(); // Ferme la modale
-            } else { // Modification d'un conseiller existant
+                onClose();
+            } else { // Modification
                 await onSaveAdvisor({
                     id: editAdvisorId,
                     name: name.trim(),
@@ -693,18 +647,14 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
             setFormError(`Erreur : ${errorMessage}`);
             showToast(`Échec de l'opération : ${errorMessage}`, 'error');
 
-            // Si une erreur s'est produite lors de la création et qu'un nouvel utilisateur a été partiellement créé,
-            // tentez de le déconnecter pour éviter le "cafouillage".
             if (!editAdvisorId && auth.currentUser && auth.currentUser.email === email.trim().toLowerCase()) {
                 await auth.signOut().catch(e => console.error("Error signing out after partial creation:", e));
             }
-
         } finally {
             setIsSaving(false);
         }
     };
 
-    // Gère le clic sur le bouton d'édition
     const handleEditClick = (advisor) => {
         setName(advisor.name);
         setEmail(advisor.email);
@@ -713,7 +663,6 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         setEditAdvisorId(advisor.id);
     };
 
-    // Gère l'annulation de l'édition
     const handleCancelEdit = () => {
         setName('');
         setEmail('');
@@ -723,7 +672,6 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         setFormError(null);
     };
 
-    // Gère la suppression d'un conseiller
     const handleDeleteClick = async (advisor) => {
         if (advisor.email === adminEmail) {
             setFormError("Vous ne pouvez pas supprimer le compte administrateur principal.");
@@ -733,7 +681,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         if (window.confirm(`Êtes-vous sûr de vouloir supprimer le conseiller ${advisor.name} (${advisor.email})? Cette action est irréversible et supprime le profil du conseiller. Pour des raisons de sécurité côté client, cela ne supprime PAS le compte d'authentification Firebase associé. Vous devrez le faire manuellement dans la console Firebase Auth.`)) {
              setIsSaving(true);
              try {
-                 await onDeleteAdvisor(advisor.id); // Supprime le profil Firestore
+                 await onDeleteAdvisor(advisor.id);
                  showToast("Conseiller supprimé de la liste. Pensez à supprimer le compte Auth manuellement.", 'success');
              } catch (error) {
                  setFormError(`Erreur lors de la suppression: ${error.message}`);
@@ -741,7 +689,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
              } finally {
                  setIsSaving(false);
              }
-            }
+        }
     };
 
     if (!isAdmin) {
@@ -855,35 +803,74 @@ export default function App() {
     const [authReady, setAuthReady] = useState(false);
     const [loginError, setLoginError] = useState(null);
     const [showLogin, setShowLogin] = useState(false);
-
     const [showOrderForm, setShowOrderForm] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null);
-
     const [showConfirmCancel, setShowConfirmCancel] = useState(false);
     const [orderToCancelId, setOrderToCancelId] = useState(null);
-
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [orderToDeleteId, setOrderToDeleteId] = useState(null);
-    
-    // Nouveaux états pour la confirmation conseiller
     const [showConfirmAdvisorChange, setShowConfirmAdvisorChange] = useState(false);
-    const [orderToUpdateStatusAdvisor, setOrderToUpdateStatusAdvisor] = useState(null); // { id, newStatusLabel }
-
+    const [orderToUpdateStatusAdvisor, setOrderToUpdateStatusAdvisor] = useState(null);
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
     const [showAdvisorManagement, setShowAdvisorManagement] = useState(false);
-
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
     const [sortOrder, setSortOrder] = useState('orderDateDesc');
-    
     const [toast, setToast] = useState(null);
 
-    // Mettre à jour le titre de la page pour "AOD Tracker OS"
+    // Mettre à jour le titre de la page
     useEffect(() => {
         document.title = "AOD Tracker OS";
     }, []);
+
+    const advisorsMap = useMemo(() => {
+        return advisors.reduce((acc, advisor) => {
+            acc[advisor.email.toLowerCase()] = advisor;
+            return acc;
+        }, {});
+    }, [advisors]);
+    
+    // *** BLOC DE CORRECTION POUR L'INITIALISATION DE FIREBASE ***
+    useEffect(() => {
+        try {
+            // 1. Initialiser Firebase
+            const app = initializeApp(firebaseConfig);
+            const authInstance = getAuth(app);
+            const dbInstance = getFirestore(app);
+
+            // 2. Mettre à jour les états db et auth
+            setAuth(authInstance);
+            setDb(dbInstance);
+
+            // 3. Mettre en place l'écouteur d'authentification
+            const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+                if (user) {
+                    // Utilisateur connecté
+                    setCurrentUser(user);
+                    // Vérifier si l'utilisateur est un admin (basé sur l'email ou un rôle)
+                    const userProfile = advisorsMap[user.email?.toLowerCase()];
+                    setIsAdmin(user.email === ADMIN_EMAIL || userProfile?.role === 'admin');
+                } else {
+                    // Utilisateur déconnecté
+                    setCurrentUser(null);
+                    setIsAdmin(false);
+                    setShowLogin(true); // Afficher le formulaire de connexion si déconnecté
+                }
+                // 4. Indiquer que l'authentification est prête
+                setAuthReady(true);
+            });
+
+            // Nettoyer l'écouteur lors du démontage du composant
+            return () => unsubscribe();
+
+        } catch (error) {
+            console.error("Erreur d'initialisation de Firebase:", error);
+            setDbError("Impossible d'initialiser les services Firebase. Vérifiez la configuration.");
+            setAuthReady(true); // Permet d'afficher l'erreur au lieu de charger indéfiniment
+        }
+    }, [advisorsMap]); // La dépendance à advisorsMap assure la mise à jour du statut admin
 
     const showToast = useCallback((message, type = 'success') => {
         setToast({ message, type });
@@ -892,14 +879,6 @@ export default function App() {
         }, 3000);
         return () => clearTimeout(timer);
     }, []);
-
-
-    const advisorsMap = useMemo(() => {
-        return advisors.reduce((acc, advisor) => {
-            acc[advisor.email.toLowerCase()] = advisor;
-            return acc;
-        }, {});
-    }, [advisors]);
 
     useEffect(() => {
         if (!authReady || !db) return;
@@ -992,9 +971,12 @@ export default function App() {
         return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, sortOrder]);
 
-
     const handleLogin = useCallback(async (email, password) => {
         setLoginError(null);
+        if (!auth) {
+            setLoginError("Le service d'authentification n'est pas prêt. Veuillez patienter.");
+            return;
+        }
         try {
             await signInWithEmailAndPassword(auth, email, password);
             setShowOrderForm(false);
@@ -1007,6 +989,7 @@ export default function App() {
     }, [auth, showToast]);
 
     const handleLogout = useCallback(() => {
+        if (!auth) return;
         signOut(auth);
         setShowOrderForm(false);
         showToast("Déconnexion réussie.", 'success');
@@ -1069,7 +1052,6 @@ export default function App() {
         }
     }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
 
-    // Fonction de mise à jour de statut (appelée par les conseillers et admins)
     const updateOrderStatus = useCallback(async (orderId, newStatusLabel, isRevert = false) => {
         if (!db || !currentUser) {
             setDbError("Vous devez être connecté pour cette action.");
@@ -1094,14 +1076,11 @@ export default function App() {
                 return;
             }
             
-            // Logique pour réinitialiser les étapes "futures" lors d'un changement de statut
             const currentOrder = orders.find(order => order.id === orderId);
             const currentStatusOrder = ORDER_STATUSES_ARRAY.find(s => s.label === currentOrder.currentStatus)?.order || 0;
             const newStatusOrder = newStatusConfig.order;
 
-            // Réinitialiser les champs de date/par des étapes supérieures
-            if (newStatusOrder < currentStatusOrder) { // Si on recule
-                // Déterminer quels champs réinitialiser en fonction du nouveau statut
+            if (newStatusOrder < currentStatusOrder) {
                 const fieldsToReset = {};
                 if (newStatusOrder < ORDER_STATUSES_CONFIG.PICKED_UP.order) {
                     fieldsToReset.pickedUpBy = null;
@@ -1116,11 +1095,7 @@ export default function App() {
                     fieldsToReset.receptionDate = null;
                 }
                 updateData = { ...updateData, ...fieldsToReset };
-            } else if (newStatusOrder > currentStatusOrder) { // Si on avance, s'assurer que les champs passés ne sont pas réinitialisés
-                // Rien à faire ici car les champs sont mis à jour spécifiquement pour le nouveau statut
-                // et les anciens restent tels quels (ce qui est le comportement désiré pour l'historique)
             }
-
 
             switch (newStatusConfig.key) {
                 case 'RECEIVED_IN_STORE':
@@ -1138,11 +1113,10 @@ export default function App() {
                     updateData.pickedUpDate = now;
                     actionText = isRevert ? `Retour au statut: ${newStatusLabel} (Correction)` : "Client a retiré son colis";
                     break;
-                case 'ORDERED': // Pour les retours à "Commandé"
-                    // Les champs sont déjà réinitialisés par la logique ci-dessus pour ORDERED
+                case 'ORDERED':
                     actionText = `Retour au statut: ${newStatusLabel} (Correction)`;
                     break;
-                case 'CANCELLED': // C'est normalement géré par handleConfirmCancel, mais pour la complétude
+                case 'CANCELLED':
                     actionText = isRevert ? `Retour au statut: ${newStatusLabel} (Correction)` : "Commande annulée";
                     break;
                 default:
@@ -1167,24 +1141,16 @@ export default function App() {
         }
     }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
 
-    // Fonction appelée par OrderCard pour la progression standard du statut
     const handleUpdateStatus = useCallback((orderId, newStatusLabel) => {
-        // La confirmation modale est désormais affichée pour tous les utilisateurs, sauf les admins qui utilisent les boutons "retour"
-        // Si c'est un admin et qu'il clique sur le bouton de progression, on ne lui montre pas la modale, on procède directement.
-        // C'est le bouton "Retour à..." qui est spécifique à l'admin et n'a pas de modale.
-        // Pour les autres cas (progression), la modale s'affiche.
         const currentUserProfile = getCurrentUserInfo();
         if (currentUserProfile && currentUserProfile.role === 'admin') {
-            // L'admin fait une progression, pas besoin de confirmation supplémentaire pour lui (il peut revenir en arrière de toute façon)
             updateOrderStatus(orderId, newStatusLabel);
         } else {
-            // Les conseillers ont toujours la confirmation
             setOrderToUpdateStatusAdvisor({ id: orderId, newStatusLabel: newStatusLabel });
             setShowConfirmAdvisorChange(true);
         }
     }, [getCurrentUserInfo, updateOrderStatus]);
 
-    // Fonction de confirmation pour les conseillers (et maintenant aussi pour admins qui progressent)
     const confirmAdvisorUpdateStatus = useCallback(() => {
         if (orderToUpdateStatusAdvisor) {
             updateOrderStatus(orderToUpdateStatusAdvisor.id, orderToUpdateStatusAdvisor.newStatusLabel);
@@ -1193,20 +1159,17 @@ export default function App() {
         setOrderToUpdateStatusAdvisor(null);
     }, [orderToUpdateStatusAdvisor, updateOrderStatus]);
 
-
-    // Nouvelle fonction pour permettre à l'admin de revenir en arrière
     const handleRevertOrderStatus = useCallback(async (orderId, targetStatusLabel) => {
-        if (!db || !currentUser || !isAdmin) { // Seul l'admin peut faire ça
+        if (!db || !currentUser || !isAdmin) {
             setDbError("Accès non autorisé pour cette action de retour en arrière.");
             showToast("Accès non autorisé.", 'error');
             return;
         }
-        // Pas de confirmation spéciale pour l'admin ici, il est censé savoir ce qu'il fait
-        await updateOrderStatus(orderId, targetStatusLabel, true); // Passer isRevert = true
+        await updateOrderStatus(orderId, targetStatusLabel, true);
     }, [db, currentUser, isAdmin, updateOrderStatus, showToast]);
 
     const handleConfirmCancel = useCallback(async () => {
-        if (!db || !currentUser || !isAdmin || !orderToCancelId) { // Seul l'admin peut annuler
+        if (!db || !currentUser || !isAdmin || !orderToCancelId) {
             setDbError("Accès non autorisé pour annuler la commande.");
             showToast("Accès non autorisé.", 'error');
             return;
@@ -1241,7 +1204,7 @@ export default function App() {
     }, [db, currentUser, isAdmin, orderToCancelId, orders, getCurrentUserInfo, showToast]);
 
     const handleConfirmDelete = useCallback(async () => {
-        if (!db || !currentUser || !isAdmin || !orderToDeleteId) { // Seul l'admin peut supprimer
+        if (!db || !currentUser || !isAdmin || !orderToDeleteId) {
             setDbError("Accès non autorisé pour supprimer la commande.");
             showToast("Accès non autorisé.", 'error');
             return;
@@ -1254,13 +1217,14 @@ export default function App() {
             setOrderToDeleteId(null);
             showToast("Commande supprimée avec succès.", 'success');
         } catch (e) {
-                console.error("Error deleting advisor:", e);
-                setDbError("Échec de la suppression du conseiller.");
-                showToast("Échec de la suppression du conseiller.", 'error');
-            } finally {
-                setIsSaving(false);
-            }
-        }, [db, isAdmin, showToast]);
+             // *** BLOC DE CORRECTION POUR LE MESSAGE D'ERREUR ***
+            console.error("Error deleting order:", e);
+            setDbError("Échec de la suppression de la commande.");
+            showToast("Échec de la suppression de la commande.", 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    }, [db, currentUser, isAdmin, orderToDeleteId, showToast]);
 
 
     const handleShowOrderHistory = useCallback((order) => {
@@ -1307,13 +1271,13 @@ export default function App() {
             await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorId));
             showToast("Conseiller supprimé de la liste. Le compte d'authentification Firebase doit être supprimé manuellement dans la console Firebase Auth si nécessaire.", 'success');
         } catch (e) {
-                console.error("Error deleting advisor:", e);
-                setDbError("Échec de la suppression du conseiller.");
-                showToast("Échec de la suppression du conseiller.", 'error');
-            } finally {
-                setIsSaving(false);
-            }
-        }, [db, isAdmin, showToast]);
+            console.error("Error deleting advisor:", e);
+            setDbError("Échec de la suppression du conseiller.");
+            showToast("Échec de la suppression du conseiller.", 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    }, [db, isAdmin, showToast]);
 
 
     if (!authReady) {
@@ -1327,14 +1291,11 @@ export default function App() {
     if (showLogin || !currentUser) {
         return (
             <div className="bg-gray-900 min-h-screen flex items-center justify-center">
-                <LoginForm onLogin={handleLogin} error={loginError} onClose={() => { /* No-op, user must log in */ }} />
+                <LoginForm onLogin={handleLogin} error={loginError} onClose={() => { setShowLogin(false); }} />
             </div>
         );
     }
 
-    // Détermine si l'utilisateur est un conseiller (et non un admin principal)
-    // Note: isAdmin est déjà vrai si c'est l'admin principal ou un rôle 'admin'
-    // Donc, isCounselor sera vrai si l'utilisateur n'est PAS admin mais est connecté.
     const isCounselorOnly = currentUser && !isAdmin;
 
     return (
@@ -1395,8 +1356,7 @@ export default function App() {
                 />
             )}
 
-            {/* Conteneur principal avec largeur maximale et centrage */}
-            <div className="max-w-md mx-auto px-2 sm:px-4 lg:px-6"> 
+            <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6"> 
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
                         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker OS</h1>
@@ -1455,10 +1415,8 @@ export default function App() {
                     </div>
                 </header>
 
-                {/* Filter and Sort Controls */}
                 {currentUser && (
                     <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-8">
-                        {/* Search Input */}
                         <div className="relative flex-grow min-w-full sm:min-w-[200px] sm:flex-grow-0">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input
@@ -1470,7 +1428,6 @@ export default function App() {
                             />
                         </div>
 
-                        {/* Status Filter Dropdown */}
                         <div className="relative w-full sm:w-auto">
                             <select
                                 value={selectedStatusFilter}
@@ -1487,7 +1444,6 @@ export default function App() {
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         </div>
 
-                        {/* Advisor Filter Dropdown */}
                         <div className="relative w-full sm:w-auto">
                             <select
                                 value={selectedAdvisorFilter}
@@ -1504,7 +1460,6 @@ export default function App() {
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         </div>
 
-                        {/* Sort Order Dropdown */}
                         <div className="relative w-full sm:w-auto">
                             <select
                                 value={sortOrder}
@@ -1542,7 +1497,7 @@ export default function App() {
                 )}
 
                 {!isLoading && filteredAndSortedOrders.length > 0 && (
-                    <div className="grid grid-cols-1 gap-6 animate-fade-in">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
                         {filteredAndSortedOrders.map((order) => (
                             <OrderCard
                                 key={order.id}
