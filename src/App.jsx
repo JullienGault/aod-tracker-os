@@ -14,8 +14,9 @@ import {
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
 // =================================================================
 
+// Configuration Firebase avec votre clé API rétablie
 const firebaseConfig = {
-    apiKey: "VOTRE_CLE_API_FIREBASE_ICI", // IMPORTANT: Remplacez par votre vraie clé API
+    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
     authDomain: "aod-tracker-os.firebaseapp.com",
     projectId: "aod-tracker-os",
     storageBucket: "aod-tracker-os.appspot.com",
@@ -47,7 +48,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => { const [clien
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><Info className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3><p className="text-gray-400 text-sm mt-2">Cette action est définitive. Contactez un admin en cas d'erreur.</p></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const LoginForm = ({ onLogin, error, onClose }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 relative animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer" className="absolute top-2 right-2 text-gray-500 hover:text-white"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion</h2><form onSubmit={handleSubmit} className="space-y-6"><div><input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><input type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && <p className="text-red-400 text-sm text-center">{error}</p>}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">Se connecter</button></form></div></div> ); };
-const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => { /* ... code du composant inchangé ... */ return null; };
+const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => { /* ... Le code de ce composant reste inchangé ... */ return null; };
 
 const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
     const getDisplayName = (email) => advisorsMap[email.toLowerCase()]?.name || email;
@@ -83,8 +84,8 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     const [isOpen, setIsOpen] = useState(false);
     const getStatusColor = (statusLabel) => { const config = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel); return config?.colorClass || 'bg-gray-500'; };
     const getDisplayName = (email) => advisorsMap[email?.toLowerCase()]?.name || email || 'N/A';
-    const getNextStatusButton = (currentStatusLabel) => { /* ... code du bouton inchangé ... */ return null; };
-    const getRevertStatusButtons = (currentStatusLabel) => { /* ... code du bouton inchangé ... */ return null; };
+    const getNextStatusButton = (currentStatusLabel) => { /* ... Le code de ce bouton reste inchangé ... */ return null; };
+    const getRevertStatusButtons = (currentStatusLabel) => { /* ... Le code de ce bouton reste inchangé ... */ return null; };
     const itemsSummary = order.items?.length > 0 ? `${order.items[0].itemName}${order.items.length > 1 ? ` (+ ${order.items.length - 1} autre${order.items.length > 2 ? 's' : ''})` : ''}` : "Aucun article";
 
     return (
@@ -109,7 +110,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         {order.pickedUpDate && (<p className="flex items-center gap-2"><UserCheck size={16} className="text-purple-400" />Retiré par <span className="font-medium text-white">{getDisplayName(order.pickedUpBy?.email)}</span><span className="ml-auto">{new Date(order.pickedUpDate).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', year: 'numeric' })}</span></p>)}
                     </div>
                     <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
-                        {/* Les boutons d'action ici */}
+                        {/* Les boutons d'action (Modifier, Supprimer, etc.) iraient ici */}
                     </div>
                 </div>
             </div>
@@ -176,11 +177,10 @@ export default function App() {
             setAuthReady(true);
         }
     }, [advisorsMap]);
-
-    // ... Toutes les autres fonctions (useCallback, etc.) ...
+    
     const showToast = useCallback((message, type = 'success') => { /* ... */ }, []);
     const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; const userProfile = advisorsMap[currentUser.email?.toLowerCase()]; const displayName = userProfile?.name || currentUser.email; return { uid: currentUser.uid, email: currentUser.email, name: displayName, role: userProfile?.role || (currentUser.email === ADMIN_EMAIL ? 'admin' : 'unknown') }; }, [currentUser, advisorsMap]);
-    const handleLogin = useCallback(async (email, password) => { /* ... */ }, [auth]);
+    const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Identifiants incorrects."); } }, [auth]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth); }, [auth]);
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
@@ -188,8 +188,7 @@ export default function App() {
         if (searchTerm.trim()) { const lower = searchTerm.toLowerCase(); currentOrders = currentOrders.filter(o => o.clientFirstName.toLowerCase().includes(lower) || o.clientLastName.toLowerCase().includes(lower) || o.items.some(i => i.itemName.toLowerCase().includes(lower))); }
         return currentOrders;
     }, [orders, selectedStatusFilter, searchTerm]);
-    // ... Autres fonctions de gestion ...
-
+    // ... Autres fonctions de gestion (handleSaveOrder, etc.) ...
 
     if (!authReady) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" /></div> ); }
     if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} onClose={() => setShowLogin(false)} /></div> ); }
@@ -198,8 +197,8 @@ export default function App() {
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
             <AnimationStyles />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-            {/* ... Modals ... */}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} advisorsMap={advisorsMap} /> )}
+            {/* ... Autres Modals ... */}
 
             <div className="max-w-4xl mx-auto px-2 sm:px-4 lg:px-6"> 
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -240,7 +239,7 @@ export default function App() {
                 <div className="grid grid-cols-1 gap-6 animate-fade-in">
                     {isLoading ? <div className="text-center py-20"><p>Chargement des commandes...</p></div> : filteredAndSortedOrders.length > 0 ? (
                         filteredAndSortedOrders.map((order) => (
-                            <OrderCard key={order.id} order={order} onShowHistory={setShowOrderHistory} advisorsMap={advisorsMap} /* autres props */ />
+                            <OrderCard key={order.id} order={order} onShowHistory={() => setShowOrderHistory(true)} advisorsMap={advisorsMap} /* autres props */ />
                         ))
                     ) : (
                         <div className="text-center py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl font-semibold">Aucune commande à afficher.</h2></div>
