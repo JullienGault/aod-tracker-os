@@ -47,6 +47,19 @@ const getUserDisplayName = (email) => {
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
 
+// NOUVEAU COMPOSANT INVISIBLE POUR FORCER L'INCLUSION DES COULEURS
+const TailwindColorSafelist = () => (
+    <div style={{ display: 'none' }}>
+        <span className="text-yellow-500"></span>
+        <span className="text-green-500"></span>
+        <span className="text-blue-500"></span>
+        <span className="text-purple-600"></span>
+        <span className="text-gray-600"></span>
+        <span className="text-purple-400"></span>
+        <span className="text-gray-400"></span>
+    </div>
+);
+
 const AnimationStyles = () => ( <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .5s ease-in-out}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}.tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding:8px 12px;background-color:rgba(45,55,72,.9);color:#fff;border-radius:8px;font-size:14px;white-space:pre-wrap;z-index:50;opacity:0;visibility:hidden;transition:opacity .2s ease-in-out,visibility .2s ease-in-out;box-shadow:0 4px 10px rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1)}.group:hover .tooltip{opacity:1;visibility:visible}.custom-scrollbar::-webkit-scrollbar{width:8px}.custom-scrollbar::-webkit-scrollbar-track{background:#374151;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#60A5FA;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb:hover{background:#3B82F6}`}</style> );
 const Tooltip = ({ children, text }) => ( <div className="relative inline-block group">{children}{text && (<div className="tooltip">{text}</div>)}</div> );
 const Toast = ({ message, type, onClose }) => { const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500'; const Icon = type === 'success' ? Check : AlertTriangle; return ( <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}><Icon size={24} /><span>{message}</span><button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors"><X size={20} /></button></div> ); };
@@ -247,6 +260,7 @@ export default function App() {
 
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
+            <TailwindColorSafelist />
             <AnimationStyles />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {showConfirmDelete && ( <ConfirmationModal message="Voulez-vous vraiment supprimer cette commande ?" onConfirm={handleConfirmDelete} onCancel={() => setShowConfirmDelete(false)} /> )}
