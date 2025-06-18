@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import ReactDOM from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, deleteUser } from 'firebase/auth'; // Added createUserWithEmailAndPassword, deleteUser
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, Slash } from 'lucide-react';
 
 // =================================================================
@@ -26,7 +26,7 @@ const ADMIN_EMAIL = "jullien.gault@orange-store.com"; // Your admin email for fu
 
 // Define order statuses with display names and next possible statuses
 const ORDER_STATUSES = {
-    ORDERED: { name: 'Commandé', next: ['RECEIVED_IN_STORE'] }, // Changed next to use keys for robustness
+    ORDERED: { name: 'Commandé', next: ['RECEIVED_IN_STORE'] },
     RECEIVED_IN_STORE: { name: 'Reçu en boutique', next: ['CLIENT_NOTIFIED'] },
     CLIENT_NOTIFIED: { name: 'Client prévenu ou averti', next: ['PICKED_UP'] },
     PICKED_UP: { name: 'Client a retiré son colis', next: [] },
@@ -106,7 +106,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '');
     const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '');
     const [receiptNumber, setReceiptNumber] = useState(initialData?.receiptNumber || '');
-    const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items : [{ itemName: '', quantity: '' }]); // Initialize with existing items or one empty item
+    const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items : [{ itemName: '', quantity: '' }]);
     const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
     const [formError, setFormError] = useState(null);
 
@@ -125,7 +125,6 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
         setItems(newItems);
     }, [items]);
 
-    // Handle form submission
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
         setFormError(null);
@@ -151,7 +150,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
                 items: validItems.map(item => ({ itemName: item.itemName.trim(), quantity: parseInt(item.quantity, 10) })),
                 orderNotes: orderNotes.trim(),
             });
-            onClose(); // Close form on successful save
+            onClose();
         } catch (error) {
             console.error("Error saving order:", error);
             setFormError("Échec de l'enregistrement de la commande. Veuillez réessayer.");
@@ -160,7 +159,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}> {/* Adjusted max-w to max-w-2xl */}
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
@@ -267,7 +266,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     // Get the next status button config based on current status and admin role
     const getNextStatusButton = (currentStatus) => {
         if (!isAdmin || currentStatus === ORDER_STATUSES.PICKED_UP.name || currentStatus === ORDER_STATUSES.CANCELLED.name) {
-            return null; // No action if not admin or already completed/cancelled
+            return null;
         }
 
         const currentStatusKey = Object.keys(ORDER_STATUSES).find(key => ORDER_STATUSES[key].name === currentStatus);
@@ -275,11 +274,11 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 
         if (currentStatusConfig && currentStatusConfig.next.length > 0) {
             const nextStatusKey = currentStatusConfig.next[0];
-            const nextStatusName = ORDER_STATUSES[nextStatusKey].name; // Get the display name for the next status
+            const nextStatusName = ORDER_STATUSES[nextStatusKey].name;
             let buttonColor = 'bg-gray-600';
             let ButtonIcon = CheckCircle; 
 
-            switch (nextStatusKey) { // Use the key for the switch for clarity
+            switch (nextStatusKey) {
                 case 'RECEIVED_IN_STORE':
                     buttonColor = 'bg-green-600';
                     ButtonIcon = Truck;
@@ -293,13 +292,12 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                     ButtonIcon = UserCheck;
                     break;
                 default:
-                    // Default icon and color
                     break;
             }
 
             return (
                 <button
-                    onClick={() => onUpdateStatus(order.id, nextStatusName)} // Pass the display name
+                    onClick={() => onUpdateStatus(order.id, nextStatusName)}
                     className={`flex-1 ${buttonColor} hover:${buttonColor.replace('600', '700')} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}
                 >
                     <ButtonIcon size={18} /> Marquer "{nextStatusName}"
@@ -312,12 +310,11 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
     return (
         <div className="bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] hover:shadow-blue-500/10 hover:ring-2 hover:ring-blue-500/50 animate-fade-in-up">
             <div className="flex justify-between items-start mb-4">
-                {/* Client Name and Order Date */}
                 <div>
-                    <h3 className="text-xl font-bold text-white mb-1"> {/* Increased font size and added margin-bottom */}
-                        <span className="text-blue-200">{order.clientFirstName} {order.clientLastName}</span> {/* Highlighted client name */}
+                    <h3 className="text-xl font-bold text-white mb-1">
+                        <span className="text-blue-200">{order.clientFirstName} {order.clientLastName}</span>
                     </h3>
-                    <p className="text-gray-400 text-sm mb-2"> {/* Moved date here and adjusted styling */}
+                    <p className="text-gray-400 text-sm mb-2">
                         Commandé le {new Date(order.orderDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 </div>
@@ -492,19 +489,25 @@ const LoginForm = ({ onLogin, error, onClose }) => {
 };
 
 // Advisor Management Component
-const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => { // Added 'auth' prop
+const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState(''); // New state for password
-    const [role, setRole] = useState('counselor'); // New state for role
+    const [password, setPassword] = useState('');
+    const [role, setRole] = useState('counselor');
     const [editAdvisorId, setEditAdvisorId] = useState(null);
     const [formError, setFormError] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [tempAdminEmail, setTempAdminEmail] = useState('');
+    const [tempAdminPassword, setTempAdminPassword] = useState('');
+
+    const showToast = useCallback((message, type) => {
+        console.log(`Toast (${type}): ${message}`);
+    }, []);
 
     const handleAddUpdateAdvisor = async (e) => {
         e.preventDefault();
         setFormError(null);
-        if (!name.trim() || !email.trim() || (!editAdvisorId && !password.trim())) { // Password required only for new user
+        if (!name.trim() || !email.trim() || (!editAdvisorId && !password.trim())) {
             setFormError("Le nom, l'email et le mot de passe (pour un nouvel utilisateur) du conseiller sont obligatoires.");
             return;
         }
@@ -514,39 +517,50 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         }
         setIsSaving(true);
         try {
-            if (!editAdvisorId) { // Create new user in Firebase Auth
-                try {
-                    await createUserWithEmailAndPassword(auth, email, password);
-                } catch (authError) {
-                    if (authError.code === 'auth/email-already-in-use') {
-                        setFormError("Cet email est déjà utilisé pour un autre compte.");
-                        setIsSaving(false);
-                        return;
-                    }
-                    if (authError.code === 'auth/weak-password') {
-                        setFormError("Le mot de passe est trop faible (minimum 6 caractères).");
-                        setIsSaving(false);
-                        return;
-                    }
-                    setFormError(`Erreur d'authentification: ${authError.message}`);
-                    setIsSaving(false);
-                    return;
-                }
+            if (!editAdvisorId) {
+                const createdUserCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+                await onSaveAdvisor({
+                    id: email.toLowerCase(),
+                    name: name.trim(),
+                    email: email.trim().toLowerCase(),
+                    role: role,
+                });
+
+                await auth.signOut();
+
+                setFormError(null);
+                setName(''); setEmail(''); setPassword(''); setRole('counselor'); setEditAdvisorId(null);
+                showToast("Conseiller créé. Veuillez vous reconnecter en tant qu'administrateur.", 'success');
+                onClose();
+            } else {
+                await onSaveAdvisor({
+                    id: editAdvisorId,
+                    name: name.trim(),
+                    email: email.trim().toLowerCase(),
+                    role: role,
+                });
+                setFormError(null);
+                setName(''); setEmail(''); setPassword(''); setRole('counselor'); setEditAdvisorId(null);
+                showToast("Conseiller modifié avec succès !", 'success');
             }
-            // Save/Update advisor profile in Firestore
-            await onSaveAdvisor({
-                id: editAdvisorId,
-                name: name.trim(),
-                email: email.trim().toLowerCase(),
-                role: role,
-            });
-            setName('');
-            setEmail('');
-            setPassword('');
-            setRole('counselor');
-            setEditAdvisorId(null);
         } catch (error) {
-            setFormError(`Erreur lors de l'enregistrement: ${error.message}`);
+            console.error("Error adding/updating advisor:", error);
+            let errorMessage = "Échec de l'enregistrement du conseiller.";
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = "Cet email est déjà utilisé pour un autre compte.";
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = "Le mot de passe est trop faible (minimum 6 caractères).";
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            setFormError(`Erreur : ${errorMessage}`);
+            showToast(`Échec de l'opération : ${errorMessage}`, 'error');
+
+            if (!editAdvisorId && auth.currentUser && auth.currentUser.email === email.trim().toLowerCase()) {
+                await auth.signOut().catch(e => console.error("Error signing out after partial creation:", e));
+            }
+
         } finally {
             setIsSaving(false);
         }
@@ -555,8 +569,8 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
     const handleEditClick = (advisor) => {
         setName(advisor.name);
         setEmail(advisor.email);
-        setRole(advisor.role || 'counselor'); // Set existing role
-        setPassword(''); // Password not editable directly for existing users
+        setRole(advisor.role || 'counselor');
+        setPassword('');
         setEditAdvisorId(advisor.id);
     };
 
@@ -572,21 +586,17 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
     const handleDeleteClick = async (advisor) => {
         if (advisor.email === adminEmail) {
             setFormError("Vous ne pouvez pas supprimer le compte administrateur principal.");
+            showToast("Impossible de supprimer le compte admin principal.", 'error');
             return;
         }
-        // This deletion is complex and should ideally be done server-side via Firebase Admin SDK
-        // because client-side deleteUser only works for the currently signed-in user.
-        // For the scope of this Canvas app, we'll delete the Firestore entry.
-        // A real app would use a Cloud Function to delete the Auth user too.
-        if (window.confirm(`Êtes-vous sûr de vouloir supprimer le conseiller ${advisor.name} (${advisor.email})? Cette action est irréversible et ne supprime PAS le compte d'authentification Firebase associé pour des raisons de sécurité côté client.`)) {
+        if (window.confirm(`Êtes-vous sûr de vouloir supprimer le conseiller ${advisor.name} (${advisor.email})? Cette action est irréversible et supprime le profil du conseiller. Pour des raisons de sécurité côté client, cela ne supprime PAS le compte d'authentification Firebase associé. Vous devrez le faire manuellement dans la console Firebase Auth.`)) {
              setIsSaving(true);
              try {
-                 await onDeleteAdvisor(advisor.id); // Deletes from Firestore
-                 // Cannot delete Auth user here directly unless it's the current user for security reasons.
-                 // For a robust app, this would trigger a cloud function to delete the Auth user.
-                 alert("Conseiller supprimé de la liste. Note: le compte d'authentification Firebase n'est pas supprimé côté client.");
+                 await onDeleteAdvisor(advisor.id);
+                 showToast("Conseiller supprimé de la liste. Pensez à supprimer le compte Auth manuellement.", 'success');
              } catch (error) {
                  setFormError(`Erreur lors de la suppression: ${error.message}`);
+                 showToast("Échec de la suppression du conseiller.", 'error');
              } finally {
                  setIsSaving(false);
              }
@@ -620,9 +630,9 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
                     </div>
                     <div>
                         <label htmlFor="advisorEmail" className="block text-sm font-medium text-gray-300 mb-1">Email du conseiller *</label>
-                        <input id="advisorEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" readOnly={!!editAdvisorId} /> {/* Email is readOnly when editing */}
+                        <input id="advisorEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" readOnly={!!editAdvisorId} />
                     </div>
-                    {!editAdvisorId && ( // Password field only for new advisors
+                    {!editAdvisorId && (
                         <div>
                             <label htmlFor="advisorPassword" className="block text-sm font-medium text-gray-300 mb-1">Mot de passe (temporaire) *</label>
                             <input id="advisorPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-gray-600 border border-gray-500 text-white p-2 rounded-lg" />
@@ -659,13 +669,13 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
                                 <li key={advisor.id} className="flex items-center justify-between bg-gray-700/50 p-3 rounded-lg">
                                     <div>
                                         <p className="font-medium text-white">{advisor.name}</p>
-                                        <p className="text-sm text-gray-400">{advisor.email} (<span className="capitalize">{advisor.role}</span>)</p> {/* Display role */}
+                                        <p className="text-sm text-gray-400">{advisor.email} (<span className="capitalize">{advisor.role}</span>)</p>
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => handleEditClick(advisor)} className="text-blue-400 hover:text-blue-300 transition-colors">
                                             <Edit size={20} />
                                         </button>
-                                        <button onClick={() => handleDeleteClick(advisor)} className="text-red-400 hover:text-red-300 transition-colors" disabled={advisor.email === adminEmail}> {/* Prevent deleting primary admin */}
+                                        <button onClick={() => handleDeleteClick(advisor)} className="text-red-400 hover:text-red-300 transition-colors" disabled={advisor.email === adminEmail}>
                                             <Trash2 size={20} />
                                         </button>
                                     </div>
@@ -685,20 +695,20 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
 
 export default function App() {
     const [orders, setOrders] = useState([]);
-    const [advisors, setAdvisors] = useState([]); // State to store advisors
+    const [advisors, setAdvisors] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [dbError, setDbError] = useState(null);
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null); // Stores Firebase User object
+    const [currentUser, setCurrentUser] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [authReady, setAuthReady] = useState(false);
     const [loginError, setLoginError] = useState(null);
     const [showLogin, setShowLogin] = useState(false);
 
     const [showOrderForm, setShowOrderForm] = useState(false);
-    const [editingOrder, setEditingOrder] = useState(null); // Stores order data if in edit mode
+    const [editingOrder, setEditingOrder] = useState(null);
 
     const [showConfirmCancel, setShowConfirmCancel] = useState(false);
     const [orderToCancelId, setOrderToCancelId] = useState(null);
@@ -708,28 +718,24 @@ export default function App() {
 
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
-    const [showAdvisorManagement, setShowAdvisorManagement] = useState(false); // New state for advisor management UI
+    const [showAdvisorManagement, setShowAdvisorManagement] = useState(false);
 
-    // New states for filtering and sorting
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedStatusFilter, setSelectedStatusFilter] = useState('All'); // 'All' or specific status name
-    const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All'); // 'All' or advisor email
-    const [sortOrder, setSortOrder] = useState('orderDateDesc'); // Default sort: Date (newest first)
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
+    const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
+    const [sortOrder, setSortOrder] = useState('orderDateDesc');
     
-    // Toast notification state
     const [toast, setToast] = useState(null);
 
-    // Function to display a toast notification
     const showToast = useCallback((message, type = 'success') => {
         setToast({ message, type });
         const timer = setTimeout(() => {
             setToast(null);
-        }, 3000); // Hide after 3 seconds
+        }, 3000);
         return () => clearTimeout(timer);
     }, []);
 
 
-    // Memoized map of advisors for quick lookup
     const advisorsMap = useMemo(() => {
         return advisors.reduce((acc, advisor) => {
             acc[advisor.email.toLowerCase()] = advisor;
@@ -737,7 +743,6 @@ export default function App() {
         }, {});
     }, [advisors]);
 
-    // Initialize Firebase and set up auth listener
     useEffect(() => {
         try {
             const app = initializeApp(firebaseConfig);
@@ -749,7 +754,6 @@ export default function App() {
             const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
                 if (user) {
                     setCurrentUser(user);
-                    // Determine isAdmin based on ADMIN_EMAIL or role from Firestore
                     const userProfile = advisorsMap[user.email?.toLowerCase()];
                     setIsAdmin(user.email === ADMIN_EMAIL || userProfile?.role === 'admin');
                     setShowLogin(false);
@@ -768,11 +772,10 @@ export default function App() {
             setDbError("Configuration Firebase invalide.");
             setIsLoading(false);
         }
-    }, [advisorsMap]); // Added advisorsMap as dependency so isAdmin updates if roles change
+    }, [advisorsMap]);
 
-    // Fetch advisors from Firestore
     useEffect(() => {
-        if (!authReady || !db) return; // Fetch advisors regardless of currentUser login, but after auth is ready
+        if (!authReady || !db) return;
 
         const advisorsColRef = collection(db, `artifacts/${APP_ID}/public/data/advisors`);
         const unsubscribe = onSnapshot(advisorsColRef,
@@ -786,11 +789,10 @@ export default function App() {
             }
         );
         return () => unsubscribe();
-    }, [authReady, db]); // Removed isAdmin, currentUser from dependency array to allow fetching advisor list even before login
+    }, [authReady, db]);
 
-    // Fetch orders from Firestore
     useEffect(() => {
-        if (!authReady || !db || !currentUser) return; // Only fetch if authenticated
+        if (!authReady || !db || !currentUser) return;
 
         const ordersCollectionRef = collection(db, `artifacts/${APP_ID}/public/data/orders`);
         const q = query(ordersCollectionRef, orderBy("orderDate", "desc"));
@@ -808,25 +810,21 @@ export default function App() {
             }
         );
         return () => unsubscribe();
-    }, [authReady, db, currentUser]); // Rerun if currentUser changes
+    }, [authReady, db, currentUser]);
 
-    // Filter and sort orders
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
 
-        // 1. Filter by Status
         if (selectedStatusFilter !== 'All') {
             currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter);
         }
 
-        // 2. Filter by Advisor
         if (selectedAdvisorFilter !== 'All') {
             currentOrders = currentOrders.filter(order =>
                 order.orderedBy && order.orderedBy.email && order.orderedBy.email.toLowerCase() === selectedAdvisorFilter.toLowerCase()
             );
         }
 
-        // 3. Filter by Search Term (client name, phone, email, item name, receipt number)
         if (searchTerm.trim()) {
             const lowerCaseSearchTerm = searchTerm.trim().toLowerCase();
             currentOrders = currentOrders.filter(order =>
@@ -834,13 +832,11 @@ export default function App() {
                 (order.clientLastName && order.clientLastName.toLowerCase().includes(lowerCaseSearchTerm)) ||
                 (order.clientEmail && order.clientEmail.toLowerCase().includes(lowerCaseSearchTerm)) ||
                 (order.clientPhone && order.clientPhone.toLowerCase().includes(lowerCaseSearchTerm)) ||
-                // Search within items array
                 (order.items && order.items.some(item => item.itemName.toLowerCase().includes(lowerCaseSearchTerm))) ||
                 (order.receiptNumber && order.receiptNumber.toLowerCase().includes(lowerCaseSearchTerm))
             );
         }
 
-        // 4. Sort
         currentOrders.sort((a, b) => {
             if (sortOrder === 'orderDateDesc') {
                 return new Date(b.orderDate) - new Date(a.orderDate);
@@ -855,7 +851,6 @@ export default function App() {
                 const nameB = `${b.clientLastName} ${b.clientFirstName}`.toLowerCase();
                 return nameB.localeCompare(nameA);
             } else if (sortOrder === 'itemNameAsc') {
-                // Sort by the first item name for simplicity, or implement more complex item sorting
                 const itemA = a.items?.[0]?.itemName || '';
                 const itemB = b.items?.[0]?.itemName || '';
                 return itemA.toLowerCase().localeCompare(itemB.toLowerCase());
@@ -871,12 +866,11 @@ export default function App() {
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, sortOrder]);
 
 
-    // Handle user login
     const handleLogin = useCallback(async (email, password) => {
         setLoginError(null);
         try {
             await signInWithEmailAndPassword(auth, email, password);
-            setShowOrderForm(false); // Close form if open
+            setShowOrderForm(false);
             setShowLogin(false);
         } catch (error) {
             console.error("Login failed:", error.code);
@@ -885,23 +879,19 @@ export default function App() {
         }
     }, [auth, showToast]);
 
-    // Handle user logout
     const handleLogout = useCallback(() => {
         signOut(auth);
-        setShowOrderForm(false); // Close form if open
+        setShowOrderForm(false);
         showToast("Déconnexion réussie.", 'success');
     }, [auth, showToast]);
 
-    // Helper to get current user info for history/tracking
     const getCurrentUserInfo = useCallback(() => {
         if (!currentUser) return null;
-        // Lookup display name from advisorsMap
         const userProfile = advisorsMap[currentUser.email?.toLowerCase()];
         const displayName = userProfile?.name || currentUser.email || 'Inconnu';
         return { uid: currentUser.uid, email: currentUser.email, name: displayName, role: userProfile?.role || (currentUser.email === ADMIN_EMAIL ? 'admin' : 'unknown') };
     }, [currentUser, advisorsMap]);
 
-    // Handle placing a new order or updating an existing one
     const handleSaveOrder = useCallback(async (orderData) => {
         if (!db || !currentUser) {
             setDbError("Vous devez être connecté pour passer ou modifier une commande.");
@@ -913,25 +903,25 @@ export default function App() {
         const now = new Date().toISOString();
 
         try {
-            if (editingOrder) { // Editing existing order
+            if (editingOrder) {
                 const updatedHistory = [...(editingOrder.history || []), {
                     timestamp: now,
                     action: "Commande modifiée",
                     by: userInfo,
-                    notes: `Mise à jour: ${JSON.stringify(orderData)}` // Stringify full orderData for comprehensive notes
+                    notes: `Mise à jour: ${JSON.stringify(orderData)}`
                 }];
                 await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), {
                     ...orderData,
                     history: updatedHistory,
                 });
-                setEditingOrder(null); // Exit edit mode
+                setEditingOrder(null);
                 showToast("Commande modifiée avec succès !", 'success');
-            } else { // Placing a new order
+            } else {
                 const newOrder = {
                     ...orderData,
                     orderedBy: userInfo,
                     orderDate: now,
-                    currentStatus: ORDER_STATUSES.ORDERED.name, // Set initial status
+                    currentStatus: ORDER_STATUSES.ORDERED.name,
                     receivedBy: null,
                     receptionDate: null,
                     notifiedBy: null,
@@ -952,7 +942,6 @@ export default function App() {
         }
     }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
 
-    // Handle updating order status (e.g., Received, Notified)
     const handleUpdateOrderStatus = useCallback(async (orderId, newStatusName) => {
         if (!db || !currentUser || !isAdmin) {
             setDbError("Accès non autorisé pour cette action.");
@@ -1008,7 +997,6 @@ export default function App() {
     }, [db, currentUser, isAdmin, orders, getCurrentUserInfo, showToast]);
 
 
-    // Handle order cancellation (only admin)
     const handleConfirmCancel = useCallback(async () => {
         if (!db || !currentUser || !isAdmin || !orderToCancelId) {
             setDbError("Accès non autorisé pour annuler la commande.");
@@ -1016,7 +1004,7 @@ export default function App() {
             return;
         }
         setIsSaving(true);
-        setShowConfirmCancel(false); // Close confirmation modal
+        setShowConfirmCancel(false);
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToCancelId);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
@@ -1044,7 +1032,6 @@ export default function App() {
         }
     }, [db, currentUser, isAdmin, orderToCancelId, orders, getCurrentUserInfo, showToast]);
 
-    // Handle order deletion (only admin)
     const handleConfirmDelete = useCallback(async () => {
         if (!db || !currentUser || !isAdmin || !orderToDeleteId) {
             setDbError("Accès non autorisé pour supprimer la commande.");
@@ -1052,7 +1039,7 @@ export default function App() {
             return;
         }
         setIsSaving(true);
-        setShowConfirmDelete(false); // Close confirmation modal
+        setShowConfirmDelete(false);
 
         try {
             await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId));
@@ -1067,19 +1054,16 @@ export default function App() {
         }
     }, [db, currentUser, isAdmin, orderToDeleteId, showToast]);
 
-    // Show order history modal
     const handleShowOrderHistory = useCallback((order) => {
         setSelectedOrderForHistory(order);
         setShowOrderHistory(true);
     }, []);
 
-    // Edit order
     const handleEditOrder = useCallback((order) => {
         setEditingOrder(order);
         setShowOrderForm(true);
     }, []);
 
-    // Advisor Management Callbacks
     const handleSaveAdvisor = useCallback(async (advisorData) => {
         if (!db || !isAdmin) {
             showToast("Accès non autorisé.", 'error');
@@ -1091,8 +1075,8 @@ export default function App() {
             await setDoc(docRef, {
                 name: advisorData.name,
                 email: advisorData.email.toLowerCase(),
-                role: advisorData.role // Save the role
-            }, { merge: true }); // Use merge to avoid overwriting if doc exists
+                role: advisorData.role
+            }, { merge: true });
             showToast("Conseiller enregistré avec succès !", 'success');
         } catch (e) {
             console.error("Error saving advisor:", e);
@@ -1111,17 +1095,8 @@ export default function App() {
         }
         setIsSaving(true);
         try {
-            // Attempt to delete the user from Firebase Auth as well
-            // This requires a privileged environment (e.g., Firebase Admin SDK in a Cloud Function)
-            // It's not directly possible from client-side for arbitrary users due to security.
-            // For this self-contained Canvas app, we'll indicate this limitation.
-            // const userToDelete = auth.currentUser; // This would only delete the *current* user
-            // if (userToDelete && userToDelete.email.toLowerCase() === advisorId.toLowerCase()) {
-            //     await deleteUser(userToDelete);
-            // }
-
             await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorId));
-            showToast("Conseiller supprimé avec succès. (Compte Auth non supprimé)", 'success'); // Indicate Auth user not deleted
+            showToast("Conseiller supprimé de la liste. Le compte d'authentification Firebase doit être supprimé manuellement dans la console Firebase Auth si nécessaire.", 'success');
         } catch (e) {
             console.error("Error deleting advisor:", e);
             setDbError("Échec de la suppression du conseiller.");
@@ -1133,7 +1108,6 @@ export default function App() {
 
 
     if (!authReady) {
-        // Show loading spinner while auth state is being determined
         return (
             <div className="bg-gray-900 min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" />
@@ -1142,7 +1116,6 @@ export default function App() {
     }
 
     if (showLogin || !currentUser) {
-        // Show login form if authReady is true but no user is logged in
         return (
             <div className="bg-gray-900 min-h-screen flex items-center justify-center">
                 <LoginForm onLogin={handleLogin} error={loginError} onClose={() => { /* No-op, user must log in */ }} />
@@ -1150,7 +1123,6 @@ export default function App() {
         );
     }
 
-    // Main application content, rendered only if currentUser is available
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
             <AnimationStyles />
@@ -1179,7 +1151,7 @@ export default function App() {
             {showAdvisorManagement && (
                 <AdvisorManagementForm
                     db={db}
-                    auth={auth} // Pass auth instance
+                    auth={auth}
                     appId={APP_ID}
                     advisors={advisors}
                     onSaveAdvisor={handleSaveAdvisor}
@@ -1197,7 +1169,7 @@ export default function App() {
                     isSaving={isSaving}
                     onClose={() => {
                         setShowOrderForm(false);
-                        setEditingOrder(null); // Reset editing order when closing form
+                        setEditingOrder(null);
                     }}
                 />
             )}
@@ -1221,7 +1193,7 @@ export default function App() {
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2 text-blue-300"> <UserCheck size={18} /> <span>Mode Admin</span></div>
                                 <button
-                                    onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} // Open form for new order
+                                    onClick={() => { setShowOrderForm(true); setEditingOrder(null); }}
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
                                 >
                                     <PlusCircle size={20} /> Nouvelle Commande
@@ -1244,7 +1216,7 @@ export default function App() {
                 </header>
 
                 {/* New Filter and Sort Controls */}
-                {currentUser && ( // Only show filters/sort if a user is logged in
+                {currentUser && (
                     <div className="flex flex-wrap items-center gap-4 mb-8">
                         {/* Search Input */}
                         <div className="relative flex-grow min-w-[200px]">
