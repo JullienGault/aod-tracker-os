@@ -456,19 +456,20 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                 <p className="flex items-center gap-2 mb-1">
                     <User size={16} /> Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email || 'N/A')}</span>
                 </p>
-                {order.receivedBy && order.receptionDate && (
+                {/* Affichage conditionnel des informations de statut : corrigé ici */}
+                {order.receivedBy && order.receptionDate && ORDER_STATUSES_CONFIG.RECEIVED_IN_STORE.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
                     <p className="flex items-center gap-2 mb-1">
                         <CheckCircle size={16} className="text-green-400" /> Reçu par <span className="font-medium text-white">{getDisplayName(order.receivedBy?.email || 'N/A')}</span>
                         le {new Date(order.receptionDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 )}
-                {order.notifiedBy && order.notificationDate && (
+                {order.notifiedBy && order.notificationDate && ORDER_STATUSES_CONFIG.CLIENT_NOTIFIED.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
                     <p className="flex items-center gap-2 mb-1">
                         <Bell size={16} className="text-blue-400" /> Client prévenu par <span className="font-medium text-white">{getDisplayName(order.notifiedBy?.email || 'N/A')}</span>
                         le {new Date(order.notificationDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 )}
-                {order.pickedUpBy && order.pickedUpDate && (
+                {order.pickedUpBy && order.pickedUpDate && ORDER_STATUSES_CONFIG.PICKED_UP.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
                     <p className="flex items-center gap-2">
                         <UserCheck size={16} className="text-purple-400" /> Retiré par <span className="font-medium text-white">{getDisplayName(order.pickedUpBy?.email || 'N/A')}</span>
                         le {new Date(order.pickedUpDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -529,8 +530,7 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
                                 <div>
                                     <p className="text-white font-medium">{event.action}</p>
                                     <p className="text-gray-300 text-sm">
-                                        Par <span className="font-semibold">{getDisplayName(event.by?.email || 'N/A')}</span>
-                                        le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        Par <span className="font-semibold">{getDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} {/* Ajout de l'espace ici */}
                                     </p>
                                     {event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}
                                 </div>
@@ -1109,6 +1109,34 @@ export default function App() {
                 setIsSaving(false);
                 return;
             }
+            
+            // Logique pour réinitialiser les étapes "futures" lors d'un changement de statut
+            const currentOrder = orders.find(order => order.id === orderId);
+            const currentStatusOrder = ORDER_STATUSES_ARRAY.find(s => s.label === currentOrder.currentStatus)?.order || 0;
+            const newStatusOrder = newStatusConfig.order;
+
+            // Réinitialiser les champs de date/par des étapes supérieures
+            if (newStatusOrder < currentStatusOrder) { // Si on recule
+                // Déterminer quels champs réinitialiser en fonction du nouveau statut
+                const fieldsToReset = {};
+                if (newStatusOrder < ORDER_STATUSES_CONFIG.PICKED_UP.order) {
+                    fieldsToReset.pickedUpBy = null;
+                    fieldsToReset.pickedUpDate = null;
+                }
+                if (newStatusOrder < ORDER_STATUSES_CONFIG.CLIENT_NOTIFIED.order) {
+                    fieldsToReset.notifiedBy = null;
+                    fieldsToReset.notificationDate = null;
+                }
+                if (newStatusOrder < ORDER_STATUSES_CONFIG.RECEIVED_IN_STORE.order) {
+                    fieldsToReset.receivedBy = null;
+                    fieldsToReset.receptionDate = null;
+                }
+                updateData = { ...updateData, ...fieldsToReset };
+            } else if (newStatusOrder > currentStatusOrder) { // Si on avance, s'assurer que les champs passés ne sont pas réinitialisés
+                // Rien à faire ici car les champs sont mis à jour spécifiquement pour le nouveau statut
+                // et les anciens restent tels quels (ce qui est le comportement désiré pour l'historique)
+            }
+
 
             switch (newStatusConfig.key) {
                 case 'RECEIVED_IN_STORE':
@@ -1127,12 +1155,7 @@ export default function App() {
                     actionText = isRevert ? `Retour au statut: ${newStatusLabel} (Correction)` : "Client a retiré son colis";
                     break;
                 case 'ORDERED': // Pour les retours à "Commandé"
-                    updateData.receivedBy = null; // Réinitialise les étapes suivantes
-                    updateData.receptionDate = null;
-                    updateData.notifiedBy = null;
-                    updateData.notificationDate = null;
-                    updateData.pickedUpBy = null;
-                    updateData.pickedUpDate = null;
+                    // Les champs sont déjà réinitialisés par la logique ci-dessus pour ORDERED
                     actionText = `Retour au statut: ${newStatusLabel} (Correction)`;
                     break;
                 case 'CANCELLED': // C'est normalement géré par handleConfirmCancel, mais pour la complétude
@@ -1142,7 +1165,6 @@ export default function App() {
                     actionText = `Statut mis à jour: ${newStatusLabel}`;
             }
 
-            const currentOrder = orders.find(order => order.id === orderId);
             const updatedHistory = [...(currentOrder?.history || []), {
                 timestamp: now,
                 action: actionText,
@@ -1163,17 +1185,22 @@ export default function App() {
 
     // Fonction appelée par OrderCard pour la progression standard du statut
     const handleUpdateStatus = useCallback((orderId, newStatusLabel) => {
-        // Si c'est un conseiller, afficher la modale de confirmation
-        if (!isAdmin) { // Avant c'était `!isAdmin`, maintenant c'est pour tout le monde
+        // La confirmation modale est désormais affichée pour tous les utilisateurs, sauf les admins qui utilisent les boutons "retour"
+        // Si c'est un admin et qu'il clique sur le bouton de progression, on ne lui montre pas la modale, on procède directement.
+        // C'est le bouton "Retour à..." qui est spécifique à l'admin et n'a pas de modale.
+        // Pour les autres cas (progression), la modale s'affiche.
+        const currentUserProfile = getCurrentUserInfo();
+        if (currentUserProfile && currentUserProfile.role === 'admin') {
+            // L'admin fait une progression, pas besoin de confirmation supplémentaire pour lui (il peut revenir en arrière de toute façon)
+            updateOrderStatus(orderId, newStatusLabel);
+        } else {
+            // Les conseillers ont toujours la confirmation
             setOrderToUpdateStatusAdvisor({ id: orderId, newStatusLabel: newStatusLabel });
             setShowConfirmAdvisorChange(true);
-        } else {
-            // Si c'est un admin, pas de confirmation spéciale
-            updateOrderStatus(orderId, newStatusLabel);
         }
-    }, [isAdmin, updateOrderStatus]);
+    }, [getCurrentUserInfo, updateOrderStatus]);
 
-    // Fonction de confirmation pour les conseillers
+    // Fonction de confirmation pour les conseillers (et maintenant aussi pour admins qui progressent)
     const confirmAdvisorUpdateStatus = useCallback(() => {
         if (orderToUpdateStatusAdvisor) {
             updateOrderStatus(orderToUpdateStatusAdvisor.id, orderToUpdateStatusAdvisor.newStatusLabel);
@@ -1295,13 +1322,13 @@ export default function App() {
             await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/advisors`, advisorId));
             showToast("Conseiller supprimé de la liste. Le compte d'authentification Firebase doit être supprimé manuellement dans la console Firebase Auth si nécessaire.", 'success');
         } catch (e) {
-            console.error("Error deleting advisor:", e);
-            setDbError("Échec de la suppression du conseiller.");
-            showToast("Échec de la suppression du conseiller.", 'error');
-        } finally {
-            setIsSaving(false);
-        }
-    }, [db, isAdmin, showToast]);
+                console.error("Error deleting advisor:", e);
+                setDbError("Échec de la suppression du conseiller.");
+                showToast("Échec de la suppression du conseiller.", 'error');
+            } finally {
+                setIsSaving(false);
+            }
+        }, [db, isAdmin, showToast]);
 
 
     if (!authReady) {
@@ -1321,7 +1348,9 @@ export default function App() {
     }
 
     // Détermine si l'utilisateur est un conseiller (et non un admin principal)
-    const isCounselor = currentUser && !isAdmin;
+    // Note: isAdmin est déjà vrai si c'est l'admin principal ou un rôle 'admin'
+    // Donc, isCounselor sera vrai si l'utilisateur n'est PAS admin mais est connecté.
+    const isCounselorOnly = currentUser && !isAdmin;
 
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
@@ -1395,7 +1424,7 @@ export default function App() {
                                 <User size={18} />
                                 <span className="font-medium">Connecté :</span>
                                 <span className="bg-gray-700/50 px-3 py-1 rounded-full text-sm font-semibold text-white">
-                                    {currentUser.email === ADMIN_EMAIL ? 'Admin principal' : getCurrentUserInfo()?.name || 'Conseiller'}
+                                    {getCurrentUserInfo()?.name || 'Conseiller'} {/* Affiche le nom ou 'Conseiller' par défaut */}
                                 </span>
                             </div>
                         )}
