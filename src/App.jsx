@@ -44,10 +44,38 @@ const getUserDisplayName = (email) => {
 };
 
 // =================================================================
+// FONCTIONS UTILITAIRES PARTAGÉES
+// =================================================================
+
+const findStatusConfigByAction = (action) => {
+    if (!action) return null;
+    return Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action || s.label === action);
+};
+
+const getIconForHistoryAction = (action) => {
+    if (!action) return History;
+    if (action.startsWith('Retour au statut:')) return RefreshCcw;
+    if (action === 'Commande modifiée') return Edit;
+    const statusConfig = findStatusConfigByAction(action);
+    return statusConfig?.icon || CheckCircle;
+};
+
+const getColorClassForHistoryAction = (action) => {
+    if (!action) return 'text-gray-400';
+    if (action.startsWith('Retour au statut:')) return 'text-gray-400';
+    if (action === 'Commande modifiée') return 'text-purple-400';
+    const statusConfig = findStatusConfigByAction(action);
+    if (statusConfig && statusConfig.colorClass) {
+        return statusConfig.colorClass.replace('bg-', 'text-');
+    }
+    return 'text-gray-400';
+};
+
+
+// =================================================================
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
 
-// NOUVEAU COMPOSANT INVISIBLE POUR FORCER L'INCLUSION DES COULEURS
 const TailwindColorSafelist = () => (
     <div style={{ display: 'none' }}>
         <span className="text-yellow-500"></span>
@@ -67,7 +95,38 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => { const [clien
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><Info className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3><p className="text-gray-400 text-sm mt-2">Le changement d'étape est définitif. En cas de besoin, merci de contacter un administrateur.</p></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const LoginForm = ({ onLogin, error }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 relative" onClick={(e) => e.stopPropagation()}><h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion</h2><form onSubmit={handleSubmit} className="space-y-6"><div><input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><input type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && <p className="text-red-400 text-sm text-center">{error}</p>}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div></div> ); };
-const OrderHistoryModal = ({ order, onClose }) => { return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Historique: {order.items?.[0]?.itemName || 'Article(s)'}</h2><div className="space-y-4">{order.history && order.history.length > 0 ? (order.history.slice().reverse().map((event, index) => ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4"><Calendar size={20} className="text-blue-400 flex-shrink-0 sm:mt-1" /><div><p className="text-white font-medium">{event.action}</p><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>{event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}</div></div> ))) : (<p className="text-gray-400 text-center">Aucun historique disponible.</p>)}</div></div></div> ); };
+
+const OrderHistoryModal = ({ order, onClose }) => {
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
+                <button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
+                <h2 className="text-2xl font-bold text-white mb-6 text-center">Historique de la commande</h2>
+                <div className="space-y-4">
+                    {order.history && order.history.length > 0 ? (
+                        order.history.slice().reverse().map((event, index) => {
+                            const Icon = getIconForHistoryAction(event.action);
+                            const colorClass = getColorClassForHistoryAction(event.action);
+                            return (
+                                <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-center space-x-4">
+                                    <Icon size={20} className={`${colorClass} flex-shrink-0`} />
+                                    <div>
+                                        <p className="text-white font-medium">{event.action}</p>
+                                        <p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                        {event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <p className="text-gray-400 text-center">Aucun historique disponible.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const RevertStatusModal = ({ onClose, onRevert, possibleStatuses }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">Retourner à une étape précédente ?</h3><p className="text-gray-400 text-sm mt-2">Quel statut souhaitez-vous ré-appliquer à cette commande ?</p></div><div className="mt-6 flex flex-col justify-center gap-3">{possibleStatuses.map(status => ( <button key={status.key} onClick={() => onRevert(status.label)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full flex items-center justify-center gap-2"><status.icon size={16} />{status.label}</button> ))}<div className="mt-6 flex justify-center"><button onClick={onClose} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button></div></div></div></div> );
 
 // =================================================================
@@ -76,9 +135,6 @@ const RevertStatusModal = ({ onClose, onRevert, possibleStatuses }) => ( <div cl
 const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, onShowRevertModal }) => {
     const [isOpen, setIsOpen] = useState(false);
     const getStatusColor = (statusLabel) => { const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel); return statusConfig?.colorClass || 'bg-gray-500'; };
-    const findStatusConfigByAction = (action) => { if (!action) return null; return Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action || s.label === action); };
-    const getIconForHistoryAction = (action) => { if (!action) return History; if (action.startsWith('Retour au statut:')) return RefreshCcw; if (action === 'Commande modifiée') return Edit; const statusConfig = findStatusConfigByAction(action); return statusConfig?.icon || CheckCircle; };
-    const getColorClassForHistoryAction = (action) => { if (!action) return 'text-gray-400'; if (action.startsWith('Retour au statut:')) return 'text-gray-400'; if (action === 'Commande modifiée') return 'text-purple-400'; const statusConfig = findStatusConfigByAction(action); if (statusConfig && statusConfig.colorClass) { return statusConfig.colorClass.replace('bg-', 'text-'); } return 'text-gray-400'; };
     const getNextStatusButton = (currentStatusLabel) => { const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === currentStatusLabel); if (!currentConfig || currentConfig.allowTransitionTo.length === 0) return null; const nextStatusKey = currentConfig.allowTransitionTo[0]; const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey]; if (!nextStatusConfig) return null; const nextStatusLabel = nextStatusConfig.label; const ButtonIcon = nextStatusConfig.icon; const buttonColorBase = nextStatusConfig.colorClass; const buttonColorHover = buttonColorBase.includes('600') ? buttonColorBase.replace('600', '700') : buttonColorBase.replace('500', '600'); return ( <button onClick={() => onUpdateStatus(order.id, nextStatusLabel)} className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}><ButtonIcon size={18} /> Marquer "{nextStatusLabel}"</button> ); };
     const getRevertStatusButton = () => { if (!isAdmin) return null; const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === order.currentStatus); if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) return null; return ( <button onClick={() => onShowRevertModal(order)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><Undo2 size={16} /> Retour</button> ); };
     const itemsSummary = order.items && order.items.length > 0 ? `${order.items[0].itemName}${order.items.length > 1 ? ` (+ ${order.items.length - 1} autre${order.items.length > 2 ? 's' : ''})` : ''}` : "Aucun article";
