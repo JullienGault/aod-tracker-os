@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, ChevronUp, RefreshCcw, ArrowLeft, ArrowRight // Ajout de ArrowLeft, ArrowRight pour la pagination
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, ChevronUp, RefreshCcw, ArrowLeft, ArrowRight
 } from 'lucide-react';
 
 // =================================================================
@@ -564,6 +564,11 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
         return advisorsMap[email.toLowerCase()]?.name || email;
     };
 
+    // Créer une copie du tableau d'historique et inverser son ordre pour afficher le plus récent en premier
+    const sortedHistory = useMemo(() => {
+        return order.history ? [...order.history].reverse() : [];
+    }, [order.history]);
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
             <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
@@ -572,8 +577,8 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
                 </button>
                 <h2 className="text-2xl font-bold text-white mb-6 text-center">Historique de la commande: {order.items?.[0]?.itemName || 'Article(s)'}</h2>
                 <div className="space-y-4">
-                    {order.history && order.history.length > 0 ? (
-                        order.history.map((event, index) => (
+                    {sortedHistory.length > 0 ? ( // Utilise le tableau trié
+                        sortedHistory.map((event, index) => (
                             <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4">
                                 <Calendar size={20} className="text-blue-400 flex-shrink-0 mt-1" />
                                 <div>
@@ -1643,7 +1648,7 @@ export default function App() {
 
                 {!isLoading && filteredAndSortedOrders.length > 0 && (
                     <div className="flex flex-col gap-6 animate-fade-in">
-                        {paginatedOrders.map((order) => ( {/* Utilisation des commandes paginées */}
+                        {paginatedOrders.map((order) => (
                             <CompactOrderRow
                                 key={order.id}
                                 order={order}
