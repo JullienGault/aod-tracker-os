@@ -325,6 +325,9 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
 
 // Composant pour afficher une carte de commande individuelle
 const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap, onRevertStatus }) => {
+    // État local pour gérer l'ouverture/fermeture de la carte
+    const [isOpen, setIsOpen] = useState(false); // Initialement fermée
+
     // Détermine la couleur du badge de statut
     const getStatusColor = (statusLabel) => {
         const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel);
@@ -412,7 +415,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 
     return (
         <div className="bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] hover:shadow-blue-500/10 hover:ring-2 hover:ring-blue-500/50 animate-fade-in-up">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4"> {/* Added flex-col for small screens */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 cursor-pointer" onClick={() => setIsOpen(!isOpen)}> {/* Ajout du onClick ici */}
                 <div>
                     <h3 className="text-xl font-bold text-white mb-1">
                         <span className="text-blue-200">{order.clientFirstName} {order.clientLastName}</span>
@@ -421,95 +424,102 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         Commandé le {new Date(order.orderDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)} mt-2 sm:mt-0`}> {/* Added margin top for small screens */}
-                    {order.currentStatus}
-                </span>
+                <div className="flex items-center gap-2 mt-2 sm:mt-0"> {/* Conteneur pour le statut et l'icône */}
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>
+                        {order.currentStatus}
+                    </span>
+                    <ChevronDown size={20} className={`text-gray-400 transform transition-transform ${isOpen ? 'rotate-180' : 'rotate-0'}`} /> {/* Icône de flèche */}
+                </div>
             </div>
 
-            {order.clientEmail && (
-                <p className="text-gray-300 text-sm flex items-center gap-2 mb-1">
-                    <Mail size={16} /> {order.clientEmail}
-                </p>
-            )}
-            {order.clientPhone && (
-                <p className="text-gray-300 text-sm flex items-center gap-2 mb-2">
-                    <Phone size={16} /> {order.clientPhone}
-                </p>
-            )}
+            {isOpen && ( // Afficher le contenu uniquement si la carte est ouverte
+                <>
+                    {order.clientEmail && (
+                        <p className="text-gray-300 text-sm flex items-center gap-2 mb-1">
+                            <Mail size={16} /> {order.clientEmail}
+                        </p>
+                    )}
+                    {order.clientPhone && (
+                        <p className="text-gray-300 text-sm flex items-center gap-2 mb-2">
+                            <Phone size={16} /> {order.clientPhone}
+                        </p>
+                    )}
 
-            <hr className="border-gray-700 my-2" />
-            
-            <h4 className="text-md font-semibold text-gray-300 mb-2">Articles :</h4>
-            <ul className="list-disc list-inside text-gray-300 mb-2 pl-4">
-                {order.items && order.items.map((item, idx) => (
-                    <li key={idx} className="text-sm">
-                        <span className="font-semibold">{item.itemName}</span> (Qté: {item.quantity})
-                    </li>
-                ))}
-            </ul>
+                    <hr className="border-gray-700 my-2" />
 
-            {order.receiptNumber && (
-                <p className="text-gray-300 text-sm flex items-center gap-2 mb-2">
-                    <ReceiptText size={16} /> <span className="font-semibold">Ticket:</span> {order.receiptNumber}
-                </p>
-            )}
-            {order.orderNotes && (
-                <p className="text-gray-400 text-sm italic mb-3 break-words">
-                    <span className="font-semibold">Notes:</span> {order.orderNotes}
-                </p>
-            )}
+                    <h4 className="text-md font-semibold text-gray-300 mb-2">Articles :</h4>
+                    <ul className="list-disc list-inside text-gray-300 mb-2 pl-4">
+                        {order.items && order.items.map((item, idx) => (
+                            <li key={idx} className="text-sm">
+                                <span className="font-semibold">{item.itemName}</span> (Qté: {item.quantity})
+                            </li>
+                        ))}
+                    </ul>
 
-            <div className="text-sm text-gray-400 mt-auto pt-3 border-t border-gray-700">
-                <p className="flex items-center gap-2 mb-1">
-                    <User size={16} /> Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email || 'N/A')}</span>
-                </p>
-                {/* Affichage conditionnel des informations de statut : corrigé ici */}
-                {order.receivedBy && order.receptionDate && ORDER_STATUSES_CONFIG.RECEIVED_IN_STORE.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
-                    <p className="flex items-center gap-2 mb-1">
-                        <CheckCircle size={16} className="text-green-400" /> Reçu par <span className="font-medium text-white">{getDisplayName(order.receivedBy?.email || 'N/A')}</span>
-                        le {new Date(order.receptionDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                )}
-                {order.notifiedBy && order.notificationDate && ORDER_STATUSES_CONFIG.CLIENT_NOTIFIED.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
-                    <p className="flex items-center gap-2 mb-1">
-                        <Bell size={16} className="text-blue-400" /> Client prévenu par <span className="font-medium text-white">{getDisplayName(order.notifiedBy?.email || 'N/A')}</span>
-                        le {new Date(order.notificationDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                )}
-                {order.pickedUpBy && order.pickedUpDate && ORDER_STATUSES_CONFIG.PICKED_UP.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
-                    <p className="flex items-center gap-2">
-                        <UserCheck size={16} className="text-purple-400" /> Retiré par <span className="font-medium text-white">{getDisplayName(order.pickedUpBy?.email || 'N/A')}</span>
-                        le {new Date(order.pickedUpDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                )}
-            </div>
+                    {order.receiptNumber && (
+                        <p className="text-gray-300 text-sm flex items-center gap-2 mb-2">
+                            <ReceiptText size={16} /> <span className="font-semibold">Ticket:</span> {order.receiptNumber}
+                        </p>
+                    )}
+                    {order.orderNotes && (
+                        <p className="text-gray-400 text-sm italic mb-3 break-words">
+                            <span className="font-semibold">Notes:</span> {order.orderNotes}
+                        </p>
+                    )}
 
-            <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700"> {/* Changed to flex-col on small screens, wrap on sm and up */}
-                {getNextStatusButton(order.currentStatus)}
-                {isAdmin && order.currentStatus !== ORDER_STATUSES_CONFIG.CANCELLED.label && (
-                    <>
+                    <div className="text-sm text-gray-400 mt-auto pt-3 border-t border-gray-700">
+                        <p className="flex items-center gap-2 mb-1">
+                            <User size={16} /> Commandé par <span className="font-medium text-white">{getDisplayName(order.orderedBy?.email || 'N/A')}</span>
+                        </p>
+                        {/* Affichage conditionnel des informations de statut : corrigé ici */}
+                        {order.receivedBy && order.receptionDate && ORDER_STATUSES_CONFIG.RECEIVED_IN_STORE.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
+                            <p className="flex items-center gap-2 mb-1">
+                                <CheckCircle size={16} className="text-green-400" /> Reçu par <span className="font-medium text-white">{getDisplayName(order.receivedBy?.email || 'N/A')}</span>
+                                le {new Date(order.receptionDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                        )}
+                        {order.notifiedBy && order.notificationDate && ORDER_STATUSES_CONFIG.CLIENT_NOTIFIED.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
+                            <p className="flex items-center gap-2 mb-1">
+                                <Bell size={16} className="text-blue-400" /> Client prévenu par <span className="font-medium text-white">{getDisplayName(order.notifiedBy?.email || 'N/A')}</span>
+                                le {new Date(order.notificationDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                        )}
+                        {order.pickedUpBy && order.pickedUpDate && ORDER_STATUSES_CONFIG.PICKED_UP.order <= (ORDER_STATUSES_ARRAY.find(s => s.label === order.currentStatus)?.order || 0) && (
+                            <p className="flex items-center gap-2">
+                                <UserCheck size={16} className="text-purple-400" /> Retiré par <span className="font-medium text-white">{getDisplayName(order.pickedUpBy?.email || 'N/A')}</span>
+                                le {new Date(order.pickedUpDate).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700"> {/* Changed to flex-col on small screens, wrap on sm and up */}
+                        {getNextStatusButton(order.currentStatus)}
+                        {isAdmin && order.currentStatus !== ORDER_STATUSES_CONFIG.CANCELLED.label && (
+                            <>
+                                <button
+                                    onClick={() => onEdit(order)}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base flex-1 sm:flex-none" /* Responsive padding and flex-1 for full width on small screens */
+                                >
+                                    <Edit size={18} /> Modifier
+                                </button>
+                                <button
+                                    onClick={() => onDelete(order.id)}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none" /* Responsive padding and flex-1 for full width on small screens */
+                                >
+                                    <Trash2 size={18} /> Supprimer
+                                </button>
+                            </>
+                        )}
+                        {getRevertStatusButtons(order.currentStatus)}
                         <button
-                            onClick={() => onEdit(order)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 w-full sm:w-auto" {/* Added w-full for small screens */}
+                            onClick={() => onShowHistory(order)}
+                            className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none" /* Responsive padding and flex-1 for full width on small screens */
                         >
-                            <Edit size={18} /> Modifier
+                            <History size={18} /> Historique
                         </button>
-                        <button
-                            onClick={() => onDelete(order.id)}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 w-full sm:w-auto" {/* Added w-full for small screens */}
-                        >
-                            <Trash2 size={18} /> Supprimer
-                        </button>
-                    </>
-                )}
-                {getRevertStatusButtons(order.currentStatus)}
-                <button
-                    onClick={() => onShowHistory(order)}
-                    className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 w-full sm:w-auto" {/* Added w-full for small screens */}
-                >
-                    <History size={18} /> Historique
-                </button>
-            </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };
@@ -731,7 +741,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
              } finally {
                  setIsSaving(false);
              }
-           }
+            }
     };
 
     if (!isAdmin) {
