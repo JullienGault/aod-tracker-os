@@ -896,6 +896,8 @@ export default function App() {
                 if (user) {
                     setCurrentUser(user);
                     const userProfile = advisorsMap[user.email?.toLowerCase()];
+                    // Détermine si l'utilisateur est admin (email principal ou rôle admin)
+                    // ou si c'est un conseiller (n'est pas admin et a un rôle 'counselor' ou par défaut)
                     setIsAdmin(user.email === ADMIN_EMAIL || userProfile?.role === 'admin');
                     setShowLogin(false);
                     setAuthReady(true);
@@ -1162,7 +1164,7 @@ export default function App() {
     // Fonction appelée par OrderCard pour la progression standard du statut
     const handleUpdateStatus = useCallback((orderId, newStatusLabel) => {
         // Si c'est un conseiller, afficher la modale de confirmation
-        if (!isAdmin) {
+        if (!isAdmin) { // Avant c'était `!isAdmin`, maintenant c'est pour tout le monde
             setOrderToUpdateStatusAdvisor({ id: orderId, newStatusLabel: newStatusLabel });
             setShowConfirmAdvisorChange(true);
         } else {
@@ -1183,7 +1185,7 @@ export default function App() {
 
     // Nouvelle fonction pour permettre à l'admin de revenir en arrière
     const handleRevertOrderStatus = useCallback(async (orderId, targetStatusLabel) => {
-        if (!db || !currentUser || !isAdmin) {
+        if (!db || !currentUser || !isAdmin) { // Seul l'admin peut faire ça
             setDbError("Accès non autorisé pour cette action de retour en arrière.");
             showToast("Accès non autorisé.", 'error');
             return;
@@ -1193,7 +1195,7 @@ export default function App() {
     }, [db, currentUser, isAdmin, updateOrderStatus, showToast]);
 
     const handleConfirmCancel = useCallback(async () => {
-        if (!db || !currentUser || !isAdmin || !orderToCancelId) {
+        if (!db || !currentUser || !isAdmin || !orderToCancelId) { // Seul l'admin peut annuler
             setDbError("Accès non autorisé pour annuler la commande.");
             showToast("Accès non autorisé.", 'error');
             return;
@@ -1228,7 +1230,7 @@ export default function App() {
     }, [db, currentUser, isAdmin, orderToCancelId, orders, getCurrentUserInfo, showToast]);
 
     const handleConfirmDelete = useCallback(async () => {
-        if (!db || !currentUser || !isAdmin || !orderToDeleteId) {
+        if (!db || !currentUser || !isAdmin || !orderToDeleteId) { // Seul l'admin peut supprimer
             setDbError("Accès non autorisé pour supprimer la commande.");
             showToast("Accès non autorisé.", 'error');
             return;
@@ -1317,6 +1319,9 @@ export default function App() {
             </div>
         );
     }
+
+    // Détermine si l'utilisateur est un conseiller (et non un admin principal)
+    const isCounselor = currentUser && !isAdmin;
 
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
@@ -1417,11 +1422,20 @@ export default function App() {
                                     </button>
                                 </Tooltip>
                             </div>
-                        ) : (
-                            <button onClick={() => setShowLogin(true)} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                                <LogIn size={18} />
-                                Connexion Admin
-                            </button>
+                        ) : ( /* Bloc pour les conseillers (non-admin) */
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => { setShowOrderForm(true); setEditingOrder(null); }}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                                >
+                                    <PlusCircle size={20} /> Nouvelle Commande
+                                </button>
+                                <Tooltip text="Se déconnecter">
+                                    <button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700">
+                                        <LogOut size={22} />
+                                    </button>
+                                </Tooltip>
+                            </div>
                         )}
                     </div>
                 </header>
@@ -1508,7 +1522,7 @@ export default function App() {
                     <div className="text-center py-20 bg-gray-800 rounded-2xl">
                         <h2 className="text-2xl font-semibold text-gray-300">Aucune commande ne correspond aux filtres.</h2>
                         <p className="text-gray-400 mt-2">Essayez d'ajuster vos critères de recherche ou vos filtres.</p>
-                        {isAdmin && <p className="text-gray-400 mt-2">Cliquez sur "Nouvelle Commande" pour ajouter une commande.</p>}
+                        {currentUser && <p className="text-gray-400 mt-2">Cliquez sur "Nouvelle Commande" pour ajouter une commande.</p>} {/* Message mis à jour pour les conseillers */}
                     </div>
                 )}
 
@@ -1518,13 +1532,13 @@ export default function App() {
                             <OrderCard
                                 key={order.id}
                                 order={order}
-                                onUpdateStatus={handleUpdateStatus} // Utilisation de la nouvelle fonction pour la confirmation conseiller
+                                onUpdateStatus={handleUpdateStatus}
                                 onEdit={handleEditOrder}
                                 onDelete={(id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }}
                                 isAdmin={isAdmin}
                                 onShowHistory={handleShowOrderHistory}
                                 advisorsMap={advisorsMap}
-                                onRevertStatus={handleRevertOrderStatus} // Nouvelle prop pour les admins
+                                onRevertStatus={handleRevertOrderStatus}
                             />
                         ))}
                     </div>
