@@ -77,14 +77,15 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 // =================================================================
 export default function App() {
     const [orders, setOrders] = useState([]);
-    const [auth, setAuth] = useState(null);
-    const [db, setDb] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [authReady, setAuthReady] = useState(false);
+    const [allUsers, setAllUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [dbError, setDbError] = useState(null);
+    const [db, setDb] = useState(null);
+    const [auth, setAuth] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [authReady, setAuthReady] = useState(false);
     const [loginError, setLoginError] = useState(null);
     const [showLogin, setShowLogin] = useState(true);
     const [showOrderForm, setShowOrderForm] = useState(false);
@@ -97,8 +98,12 @@ export default function App() {
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
     const [showRevertModal, setShowRevertModal] = useState(false);
     const [orderToRevert, setOrderToRevert] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
+    const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
+    const [viewMode, setViewMode] = useState('active');
     const [toast, setToast] = useState(null);
-    
+
     useEffect(() => { document.title = "AOD Tracker OS"; }, []);
 
     useEffect(() => {
@@ -141,6 +146,12 @@ export default function App() {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setOrders(fetchedOrders);
+            const usersFromOrders = fetchedOrders.reduce((acc, order) => {
+                if (order.orderedBy?.email) { acc[order.orderedBy.email] = { email: order.orderedBy.email, name: getUserDisplayName(order.orderedBy.email) }; }
+                order.history?.forEach(h => { if (h.by?.email) { acc[h.by.email] = { email: h.by.email, name: getUserDisplayName(h.by.email) }; } });
+                return acc;
+            }, {});
+            setAllUsers(Object.values(usersFromOrders));
             setIsLoading(false);
             setDbError(null);
         }, (err) => {
@@ -150,6 +161,19 @@ export default function App() {
         });
         return () => unsubscribe();
     }, [authReady, db, currentUser]);
+
+    const filteredAndSortedOrders = useMemo(() => {
+        let currentOrders = [...orders];
+        if (viewMode === 'active') {
+            currentOrders = currentOrders.filter(order => order.currentStatus !== ORDER_STATUSES_CONFIG.ARCHIVED.label);
+        } else {
+            currentOrders = currentOrders.filter(order => order.currentStatus === ORDER_STATUSES_CONFIG.ARCHIVED.label);
+        }
+        if (selectedStatusFilter !== 'All' && viewMode === 'active') { currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter); }
+        if (selectedAdvisorFilter !== 'All') { currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); }
+        if (searchTerm.trim()) { const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); currentOrders = currentOrders.filter(order => ((order.clientFirstName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientLastName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientEmail || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientPhone || '').toLowerCase().includes(lowerCaseSearchTerm)) || (order.items?.some(item => (item.itemName || '').toLowerCase().includes(lowerCaseSearchTerm))) || ((order.receiptNumber || '').toLowerCase().includes(lowerCaseSearchTerm)) ); }
+        return currentOrders;
+    }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service d'authentification non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
@@ -174,9 +198,7 @@ export default function App() {
             if (!newStatusConfig) throw new Error("Nouveau statut invalide");
             const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : newStatusConfig.description;
             let updateData = { currentStatus: newStatusLabel };
-            if (newStatusLabel === ORDER_STATUSES_CONFIG.ARCHIVED.label) {
-                updateData.archivedAt = now;
-            }
+            if (newStatusLabel === ORDER_STATUSES_CONFIG.ARCHIVED.label) { updateData.archivedAt = now; }
             await updateDoc(orderRef, { ...updateData, history: [...(orderToUpdate.history || []), { timestamp: now, action: historyAction, by: userInfo }] });
             showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success');
         } catch (e) { console.error(e); showToast("Échec de la mise à jour.", 'error'); } finally { setIsSaving(false); }
@@ -219,7 +241,6 @@ export default function App() {
         const prevStatusKeys = currentConfig?.allowTransitionFrom || [];
         return prevStatusKeys.map(key => ORDER_STATUSES_CONFIG[key]).filter(Boolean);
     }, [orderToRevert]);
-
     
     if (!authReady) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /></div> ); }
     if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} /></div> ); }
@@ -246,21 +267,35 @@ export default function App() {
                     </div>
                 </header>
                 
-                <div className="text-center p-4 mb-6 bg-blue-900/30 border border-blue-500/50 rounded-lg">
-                    <h2 className="font-semibold text-blue-300">Étape 3 : Test d'affichage des composants</h2>
-                    <p className="text-sm text-gray-400">La liste ci-dessous affiche toutes les commandes sans aucun filtre.</p>
+                <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-6">
+                    <button onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><PlusCircle size={20} /> Nouvelle Commande</button>
+                    <div className="flex-grow"></div>
+                    {viewMode === 'active' ? (
+                        <button onClick={() => setViewMode('archived')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><Archive size={20} /> Consulter les Archives</button>
+                    ) : (
+                        <button onClick={() => setViewMode('active')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><List size={20} /> Commandes Actives</button>
+                    )}
                 </div>
 
+                <div className="bg-gray-800/50 rounded-2xl p-4 mb-8">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="relative flex-grow">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
+                        </div>
+                        <div className="relative"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}><option value="All">Tous les statuts</option>{ORDER_STATUSES_ARRAY.filter(s => s.key !== 'ARCHIVED').map(status => (<option key={status.key} value={status.label}>{status.label}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                        <div className="relative"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                    </div>
+                </div>
 
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
                 
                 {isLoading ? (
                     <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /><p className="text-gray-400 mt-4">Chargement...</p></div>
-                ) : orders.length === 0 ? (
-                    <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">Aucune commande trouvée</h2></div>
+                ) : filteredAndSortedOrders.length === 0 ? (
+                    <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">{viewMode === 'active' ? 'Aucune commande active trouvée' : 'Aucune commande dans les archives'}</h2><p className="text-gray-400 mt-2">{viewMode === 'active' ? 'Créez une nouvelle commande pour commencer.' : ''}</p></div>
                 ) : (
                     <div className="grid grid-cols-1 gap-6 animate-fade-in">
-                        {orders.map((order) => (
+                        {filteredAndSortedOrders.map((order) => (
                             <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} onEdit={handleEditOrder} onDelete={handleDeleteOrder} isAdmin={isAdmin} onShowHistory={handleShowOrderHistory} onShowRevertModal={handleShowRevertModal} />
                         ))}
                     </div>
