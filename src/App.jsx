@@ -82,6 +82,26 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         return statusConfig?.icon || CheckCircle;
     };
 
+    // NOUVELLE FONCTION POUR OBTENIR LA COULEUR DE L'ICÔNE
+    const getColorClassForHistoryAction = (action) => {
+        if (!action) return 'text-gray-400';
+
+        // Gérer les cas spéciaux
+        if (action.startsWith('Retour au statut:')) return 'text-gray-400';
+        if (action === 'Commande modifiée') return 'text-purple-400';
+        
+        // Trouver le statut correspondant dans la configuration
+        const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === action || `Commande ${s.label.toLowerCase()}` === action);
+        if (statusConfig && statusConfig.colorClass) {
+            // Convertir la couleur de fond (bg-...) en couleur de texte (text-...)
+            return statusConfig.colorClass.replace('bg-', 'text-');
+        }
+        
+        // Couleur par défaut
+        return 'text-gray-400';
+    };
+
+
     const getNextStatusButton = (currentStatusLabel) => {
         const currentStatusKey = Object.keys(ORDER_STATUSES_CONFIG).find(key => ORDER_STATUSES_CONFIG[key].label === currentStatusLabel);
         const currentConfig = ORDER_STATUSES_CONFIG[currentStatusKey];
@@ -134,9 +154,10 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                         {order.history && order.history.length > 0 ? (
                             order.history.map((event, index) => {
                                 const Icon = getIconForHistoryAction(event.action);
+                                const colorClass = getColorClassForHistoryAction(event.action); // Utiliser la nouvelle fonction
                                 return (
                                     <div key={index} className="flex items-center">
-                                        <Icon className="mr-2 h-4 w-4 text-gray-400 flex-shrink-0" />
+                                        <Icon className={`mr-2 h-4 w-4 ${colorClass} flex-shrink-0`} />
                                         <p>
                                             <span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                         </p>
@@ -145,7 +166,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                             })
                         ) : (
                             <div className="flex items-center">
-                                 <Package className="mr-2 h-4 w-4 text-gray-400 flex-shrink-0" />
+                                 <Package className="mr-2 h-4 w-4 text-yellow-500 flex-shrink-0" />
                                  <p>Commandé par <span className="font-medium text-white">{getUserDisplayName(order.orderedBy?.email)}</span> le {new Date(order.orderDate).toLocaleDateString('fr-FR')}</p>
                             </div>
                         )}
@@ -325,7 +346,7 @@ export default function App() {
             setOrderToUpdateStatusAdvisor({ id: orderId, newStatusLabel });
             setShowConfirmAdvisorChange(true);
         }
-    }, [isAdmin, updateOrderStatus, setOrderToUpdateStatusAdvisor, setShowConfirmAdvisorChange]);
+    }, [isAdmin, updateOrderStatus]);
 
     const confirmAdvisorUpdateStatus = useCallback(() => {
         if (orderToUpdateStatusAdvisor) {
@@ -333,7 +354,7 @@ export default function App() {
         }
         setShowConfirmAdvisorChange(false);
         setOrderToUpdateStatusAdvisor(null);
-    }, [orderToUpdateStatusAdvisor, updateOrderStatus, setOrderToUpdateStatusAdvisor, setShowConfirmAdvisorChange]);
+    }, [orderToUpdateStatusAdvisor, updateOrderStatus]);
 
     const handleDeleteOrder = useCallback((id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }, []);
     const handleConfirmDelete = useCallback(async () => { if (!db || !isAdmin || !orderToDeleteId) { showToast("Action non autorisée.", 'error'); return; } setIsSaving(true); try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId)); showToast("Commande supprimée.", 'success'); } catch (e) { showToast("Échec de la suppression.", 'error'); } finally { setShowConfirmDelete(false); setOrderToDeleteId(null); setIsSaving(false); } }, [db, isAdmin, orderToDeleteId, showToast]);
