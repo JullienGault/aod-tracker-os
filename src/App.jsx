@@ -7,7 +7,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 
 // Importations des icônes Lucide React
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw, Archive, Undo2
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw, Archive, Undo2, List
 } from 'lucide-react';
 
 // =================================================================
@@ -27,7 +27,7 @@ const firebaseConfig = {
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
-// NOUVELLE CONFIGURATION DES STATUTS
+// CONFIGURATION DES STATUTS
 const ORDER_STATUSES_CONFIG = {
     ORDERED:   { key: 'ORDERED',   label: 'Commandé', description: 'Commande passée',                colorClass: 'bg-yellow-500', icon: Package,   order: 1, allowTransitionTo: ['RECEIVED'],   allowTransitionFrom: [] },
     RECEIVED:  { key: 'RECEIVED',  label: 'Reçu',     description: 'Article reçu en boutique',        colorClass: 'bg-green-500',  icon: Truck,     order: 2, allowTransitionTo: ['NOTIFIED'],   allowTransitionFrom: ['ORDERED'] },
@@ -60,30 +60,7 @@ const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confir
 const ConfirmationModalAdvisor = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><Info className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3><p className="text-gray-400 text-sm mt-2">Le changement d'étape est définitif. En cas de besoin, merci de contacter un administrateur.</p></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const LoginForm = ({ onLogin, error, onClose }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 relative animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer la fenêtre de connexion" className="absolute top-2 right-2 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion</h2><form onSubmit={handleSubmit} className="space-y-6"><div><input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><input type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && <p className="text-red-400 text-sm text-center">{error}</p>}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div></div> ); };
 const OrderHistoryModal = ({ order, onClose }) => { return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Historique: {order.items?.[0]?.itemName || 'Article(s)'}</h2><div className="space-y-4">{order.history && order.history.length > 0 ? (order.history.slice().reverse().map((event, index) => ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4"><Calendar size={20} className="text-blue-400 flex-shrink-0 sm:mt-1" /><div><p className="text-white font-medium">{event.action}</p><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>{event.notes && <p className="text-gray-400 text-xs italic mt-1">Notes: {event.notes}</p>}</div></div> ))) : (<p className="text-gray-400 text-center">Aucun historique disponible.</p>)}</div></div></div> ); };
-
-// NOUVEAU COMPOSANT : FENÊTRE MODALE POUR LE RETOUR EN ARRIÈRE
-const RevertStatusModal = ({ onClose, onRevert, possibleStatuses }) => (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
-            <div className="text-center">
-                <Undo2 className="mx-auto h-12 w-12 text-blue-400" />
-                <h3 className="mt-4 text-xl font-medium text-white">Retourner à une étape précédente ?</h3>
-                <p className="text-gray-400 text-sm mt-2">Quel statut souhaitez-vous ré-appliquer à cette commande ?</p>
-            </div>
-            <div className="mt-6 flex flex-col justify-center gap-3">
-                {possibleStatuses.map(status => (
-                    <button key={status.key} onClick={() => onRevert(status.label)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full flex items-center justify-center gap-2">
-                        <status.icon size={16} />
-                        {status.label}
-                    </button>
-                ))}
-            </div>
-             <div className="mt-6 flex justify-center">
-                 <button onClick={onClose} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button>
-            </div>
-        </div>
-    </div>
-);
+const RevertStatusModal = ({ onClose, onRevert, possibleStatuses }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">Retourner à une étape précédente ?</h3><p className="text-gray-400 text-sm mt-2">Quel statut souhaitez-vous ré-appliquer à cette commande ?</p></div><div className="mt-6 flex flex-col justify-center gap-3">{possibleStatuses.map(status => ( <button key={status.key} onClick={() => onRevert(status.label)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full flex items-center justify-center gap-2"><status.icon size={16} />{status.label}</button> ))}<div className="mt-6 flex justify-center"><button onClick={onClose} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button></div></div></div></div> );
 
 
 // =================================================================
@@ -101,7 +78,6 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         if (!action) return History;
         if (action.startsWith('Retour au statut:')) return RefreshCcw;
         if (action === 'Commande modifiée') return Edit;
-
         const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action);
         return statusConfig?.icon || CheckCircle;
     };
@@ -110,41 +86,31 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         if (!action) return 'text-gray-400';
         if (action.startsWith('Retour au statut:')) return 'text-gray-400';
         if (action === 'Commande modifiée') return 'text-purple-400';
-        
         const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.description === action);
         if (statusConfig && statusConfig.colorClass) {
             return statusConfig.colorClass.replace('bg-', 'text-');
         }
-        
         return 'text-gray-400';
     };
 
     const getNextStatusButton = (currentStatusLabel) => {
         const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === currentStatusLabel);
         if (!currentConfig || currentConfig.allowTransitionTo.length === 0) return null;
-        
         const nextStatusKey = currentConfig.allowTransitionTo[0];
         const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey];
         if (!nextStatusConfig) return null;
-
         const nextStatusLabel = nextStatusConfig.label;
         const ButtonIcon = nextStatusConfig.icon;
         const buttonColorBase = nextStatusConfig.colorClass;
         const buttonColorHover = buttonColorBase.includes('600') ? buttonColorBase.replace('600', '700') : buttonColorBase.replace('500', '600');
-        
         return ( <button onClick={() => onUpdateStatus(order.id, nextStatusLabel)} className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}><ButtonIcon size={18} /> Marquer "{nextStatusLabel}"</button> );
     };
 
-    const getRevertStatusButton = (currentStatusLabel) => {
+    const getRevertStatusButton = () => {
         if (!isAdmin) return null;
-        const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === currentStatusLabel);
+        const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === order.currentStatus);
         if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) return null;
-        
-        return (
-            <button onClick={() => onShowRevertModal(order)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
-                <Undo2 size={16} /> Retour
-            </button>
-        );
+        return ( <button onClick={() => onShowRevertModal(order)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><Undo2 size={16} /> Retour</button> );
     };
     
     const itemsSummary = order.items && order.items.length > 0
@@ -181,9 +147,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
                                 return (
                                     <div key={index} className="flex items-center">
                                         <Icon className={`mr-2 h-4 w-4 ${colorClass} flex-shrink-0`} />
-                                        <p>
-                                            <span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                        </p>
+                                        <p><span className="font-medium text-white">{event.action}</span> par <span className="font-medium text-white">{getUserDisplayName(event.by?.email)}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                                     </div>
                                 );
                             })
@@ -197,7 +161,7 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 
                     <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
                         {getNextStatusButton(order.currentStatus)}
-                        {getRevertStatusButton(order.currentStatus)}
+                        {getRevertStatusButton()}
                         <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
                         {isAdmin && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
                         {isAdmin && <button onClick={() => onDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}
@@ -238,8 +202,7 @@ export default function App() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
-    const [sortOrder, setSortOrder] = useState('orderDateDesc');
-    const [toast, setToast] = useState(null);
+    const [viewMode, setViewMode] = useState('active'); // 'active' ou 'archived'
 
     useEffect(() => { document.title = "AOD Tracker OS"; }, []);
 
@@ -286,17 +249,11 @@ export default function App() {
             
             const usersFromOrders = fetchedOrders.reduce((acc, order) => {
                 if (order.orderedBy?.email) {
-                    acc[order.orderedBy.email] = {
-                        email: order.orderedBy.email,
-                        name: getUserDisplayName(order.orderedBy.email)
-                    };
+                    acc[order.orderedBy.email] = { email: order.orderedBy.email, name: getUserDisplayName(order.orderedBy.email) };
                 }
                 order.history?.forEach(h => {
                     if (h.by?.email) {
-                       acc[h.by.email] = {
-                           email: h.by.email,
-                           name: getUserDisplayName(h.by.email)
-                       };
+                       acc[h.by.email] = { email: h.by.email, name: getUserDisplayName(h.by.email) };
                     }
                 });
                 return acc;
@@ -316,24 +273,28 @@ export default function App() {
 
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
+
+        // 1. Filtrer par mode de vue (actif ou archivé)
+        if (viewMode === 'active') {
+            currentOrders = currentOrders.filter(order => order.currentStatus !== ORDER_STATUSES_CONFIG.ARCHIVED.label);
+        } else { // viewMode === 'archived'
+            currentOrders = currentOrders.filter(order => order.currentStatus === ORDER_STATUSES_CONFIG.ARCHIVED.label);
+        }
+
+        // 2. Appliquer les autres filtres sur la liste pré-filtrée
         if (selectedStatusFilter !== 'All') { currentOrders = currentOrders.filter(order => order.currentStatus === selectedStatusFilter); }
         if (selectedAdvisorFilter !== 'All') { currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); }
         if (searchTerm.trim()) { const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); currentOrders = currentOrders.filter(order => (order.clientFirstName?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientLastName?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientEmail?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.clientPhone?.toLowerCase().includes(lowerCaseSearchTerm)) || (order.items?.some(item => item.itemName.toLowerCase().includes(lowerCaseSearchTerm))) || (order.receiptNumber?.toLowerCase().includes(lowerCaseSearchTerm)) ); }
-        currentOrders.sort((a, b) => { if (sortOrder === 'orderDateDesc') { return new Date(b.orderDate) - new Date(a.orderDate); } if (sortOrder === 'orderDateAsc') { return new Date(a.orderDate) - new Date(b.orderDate); } if (sortOrder === 'clientNameAsc') { return `${a.clientLastName} ${a.clientFirstName}`.localeCompare(`${b.clientLastName} ${b.clientFirstName}`); } if (sortOrder === 'clientNameDesc') { return `${b.clientLastName} ${b.clientFirstName}`.localeCompare(`${a.clientLastName} ${a.clientFirstName}`); } return 0; });
-        return currentOrders;
-    }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, sortOrder]);
+        
+        return currentOrders; // Le tri par date est déjà fait par la requête firestore
+    }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service d'authentification non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
     
     const getCurrentUserInfo = useCallback(() => {
         if (!currentUser) return null;
-        return {
-            uid: currentUser.uid,
-            email: currentUser.email,
-            name: getUserDisplayName(currentUser.email),
-            role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'counselor'
-        };
+        return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'counselor' };
     }, [currentUser]);
 
     const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) { showToast("Vous devez être connecté.", 'error'); return; } setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id), { ...orderData, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] }); showToast("Commande modifiée !", 'success'); } else { await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), { ...orderData, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUSES_CONFIG.ORDERED.label, history: [{ timestamp: now, action: ORDER_STATUSES_CONFIG.ORDERED.description, by: userInfo }] }); showToast("Commande ajoutée !", 'success'); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { showToast("Échec de l'enregistrement.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
@@ -353,17 +314,18 @@ export default function App() {
 
             const historyAction = isRevert ? `Retour au statut: ${newStatusLabel}` : newStatusConfig.description;
             
+            let updateData = { currentStatus: newStatusLabel };
+            // AJOUT DE LA DATE D'ARCHIVAGE
+            if (newStatusLabel === ORDER_STATUSES_CONFIG.ARCHIVED.label) {
+                updateData.archivedAt = now;
+            }
+
             await updateDoc(orderRef, {
-                currentStatus: newStatusLabel,
+                ...updateData,
                 history: [...(orderToUpdate.history || []), { timestamp: now, action: historyAction, by: userInfo }]
             });
             showToast(`Statut mis à jour: "${newStatusLabel}"`, 'success');
-        } catch (e) {
-            console.error(e);
-            showToast("Échec de la mise à jour.", 'error');
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (e) { console.error(e); showToast("Échec de la mise à jour.", 'error'); } finally { setIsSaving(false); }
     }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
 
     const handleUpdateStatus = useCallback((orderId, newStatusLabel) => {
@@ -389,12 +351,7 @@ export default function App() {
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
     const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
     
-    // NOUVELLES FONCTIONS POUR LA MODALE DE RETOUR
-    const handleShowRevertModal = useCallback((order) => {
-        setOrderToRevert(order);
-        setShowRevertModal(true);
-    }, []);
-
+    const handleShowRevertModal = useCallback((order) => { setOrderToRevert(order); setShowRevertModal(true); }, []);
     const handleRevertStatus = useCallback((newStatusLabel) => {
         if (!orderToRevert) return;
         updateOrderStatus(orderToRevert.id, newStatusLabel, true);
@@ -421,13 +378,7 @@ export default function App() {
             {showConfirmAdvisorChange && ( <ConfirmationModalAdvisor message={`Confirmer le passage au statut "${orderToUpdateStatusAdvisor?.newStatusLabel}" ?`} onConfirm={confirmAdvisorUpdateStatus} onCancel={() => setShowConfirmAdvisorChange(false)} /> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
-            {showRevertModal && (
-                <RevertStatusModal
-                    onClose={() => setShowRevertModal(false)}
-                    onRevert={handleRevertStatus}
-                    possibleStatuses={possibleRevertStatuses}
-                />
-            )}
+            {showRevertModal && ( <RevertStatusModal onClose={() => setShowRevertModal(false)} onRevert={handleRevertStatus} possibleStatuses={possibleRevertStatuses}/> )}
 
             <div className="max-w-4xl mx-auto px-2 sm:px-4 lg:px-6"> 
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
@@ -436,37 +387,38 @@ export default function App() {
                         <p className="text-gray-400 mt-1 text-sm sm:text-base">Suivez vos commandes d'accessoires en temps réel.</p>
                     </div>
                     <div className="mt-4 sm:mt-0 flex flex-wrap items-center justify-end gap-2 sm:gap-4">
-                        <div className="flex items-center gap-2 text-blue-300">
-                            <User size={18} />
-                            <span className="font-medium text-sm sm:text-base">Connecté :</span>
-                            <span className="bg-gray-700/50 px-2 py-1 rounded-full text-xs sm:text-sm font-semibold text-white">{getCurrentUserInfo()?.name || 'Conseiller'}</span>
-                        </div>
-                        {isAdmin ? (
-                            <div className="flex flex-wrap gap-2 sm:gap-4">
-                                <span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold text-white shadow-md"><UserCheck size={16} /> Mode Admin</span>
-                                <Tooltip text="Se déconnecter"><button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip>
-                            </div>
-                        ) : (
-                            <Tooltip text="Se déconnecter"><button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip>
-                        )}
+                        <div className="flex items-center gap-2 text-blue-300"><User size={18} /><span className="font-medium text-sm sm:text-base">Connecté :</span><span className="bg-gray-700/50 px-2 py-1 rounded-full text-xs sm:text-sm font-semibold text-white">{getCurrentUserInfo()?.name || 'Conseiller'}</span></div>
+                        {isAdmin ? ( <div className="flex flex-wrap gap-2 sm:gap-4"><span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold text-white shadow-md"><UserCheck size={16} /> Mode Admin</span><Tooltip text="Se déconnecter"><button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip></div> ) : ( <Tooltip text="Se déconnecter"><button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip> )}
                     </div>
                 </header>
                 
-                <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-8">
-                    <button onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base flex-1 sm:flex-none"><PlusCircle size={20} /> Nouvelle Commande</button>
-                    <div className="relative flex-grow min-w-full sm:min-w-[200px] sm:flex-grow-0">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
-                    </div>
-                    <div className="relative w-full sm:w-auto"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les statuts</option>{ORDER_STATUSES_ARRAY.map(status => (<option key={status.key} value={status.label}>{status.label}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                    <div className="relative w-full sm:w-auto"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-6">
+                    <button onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><PlusCircle size={20} /> Nouvelle Commande</button>
+                    <div className="flex-grow"></div> {/* Espaceur */}
+                    {viewMode === 'active' ? (
+                        <button onClick={() => setViewMode('archived')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><Archive size={20} /> Consulter les Archives</button>
+                    ) : (
+                        <button onClick={() => setViewMode('active')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><List size={20} /> Commandes Actives</button>
+                    )}
                 </div>
+
+                <div className="bg-gray-800/50 rounded-2xl p-4 mb-8">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="relative flex-grow">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
+                        </div>
+                        <div className="relative"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}><option value="All">Tous les statuts</option>{ORDER_STATUSES_ARRAY.filter(s => s.key !== 'ARCHIVED').map(status => (<option key={status.key} value={status.label}>{status.label}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                        <div className="relative"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                    </div>
+                </div>
+
 
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
                 
                 {isLoading ? (
                     <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /><p className="text-gray-400 mt-4">Chargement...</p></div>
                 ) : filteredAndSortedOrders.length === 0 ? (
-                    <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">Aucune commande trouvée</h2><p className="text-gray-400 mt-2">Essayez d'ajuster vos filtres ou créez une nouvelle commande.</p></div>
+                    <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">{viewMode === 'active' ? 'Aucune commande active trouvée' : 'Aucune commande dans les archives'}</h2><p className="text-gray-400 mt-2">{viewMode === 'active' ? 'Créez une nouvelle commande pour commencer.' : ''}</p></div>
                 ) : (
                     <div className="grid grid-cols-1 gap-6 animate-fade-in">
                         {filteredAndSortedOrders.map((order) => (
