@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import ReactDOM from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, setDoc, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
-import { PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check, Slash } from 'lucide-react';
+import {
+    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, Calendar, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, UserPlus, Phone, Mail, ReceiptText, Search, MinusCircle, Check
+} from 'lucide-react'; // Removed Slash if not used elsewhere
 
 // =================================================================
 // CONFIGURATION & CONSTANTES
 // =================================================================
 
-// Configuration Firebase mise à jour
+// Configuration Firebase de l'application
 const firebaseConfig = {
     apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
     authDomain: "aod-tracker-os.firebaseapp.com",
@@ -19,12 +20,13 @@ const firebaseConfig = {
     appId: "1:429289937311:web:1ab993b09899afc2b245aa",
 };
 
-// App ID provided by the environment.
+// ID de l'application fourni par l'environnement
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 
-const ADMIN_EMAIL = "jullien.gault@orange-store.com"; // Your admin email for full control
+// Email de l'administrateur principal de l'application
+const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
-// Define order statuses with display names and next possible statuses
+// Définition des statuts des commandes avec leurs noms affichables et la progression
 const ORDER_STATUSES = {
     ORDERED: { name: 'Commandé', next: ['RECEIVED_IN_STORE'] },
     RECEIVED_IN_STORE: { name: 'Reçu en boutique', next: ['CLIENT_NOTIFIED'] },
@@ -37,7 +39,7 @@ const ORDER_STATUSES = {
 // COMPOSANTS UI
 // =================================================================
 
-// Styles for animations
+// Styles d'animation pour les transitions fluides
 const AnimationStyles = () => (
     <style>{`
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -69,7 +71,7 @@ const AnimationStyles = () => (
     `}</style>
 );
 
-// Tooltip component for hover information
+// Composant Tooltip pour afficher des informations au survol
 const Tooltip = ({ children, text }) => {
     return (
         <div className="relative inline-block group">
@@ -83,7 +85,7 @@ const Tooltip = ({ children, text }) => {
     );
 };
 
-// Toast Notification Component
+// Composant Toast pour les notifications temporaires
 const Toast = ({ message, type, onClose }) => {
     const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
     const Icon = type === 'success' ? Check : AlertTriangle;
@@ -99,7 +101,7 @@ const Toast = ({ message, type, onClose }) => {
     );
 };
 
-// Form for creating and editing orders
+// Formulaire pour créer ou modifier une commande
 const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
     const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
@@ -110,21 +112,25 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
     const [formError, setFormError] = useState(null);
 
+    // Gère les changements sur les champs d'un article
     const handleItemChange = useCallback((index, field, value) => {
         const newItems = [...items];
         newItems[index][field] = value;
         setItems(newItems);
     }, [items]);
 
+    // Ajoute un nouvel article au formulaire
     const handleAddItem = useCallback(() => {
         setItems([...items, { itemName: '', quantity: '' }]);
     }, [items]);
 
+    // Supprime un article du formulaire
     const handleRemoveItem = useCallback((index) => {
         const newItems = items.filter((_, i) => i !== index);
         setItems(newItems);
     }, [items]);
 
+    // Gère la soumission du formulaire de commande
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
         setFormError(null);
@@ -244,9 +250,9 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
     );
 };
 
-// Component to display an individual order card
+// Composant pour afficher une carte de commande individuelle
 const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHistory, advisorsMap }) => {
-    // Determine the color of the status badge
+    // Détermine la couleur du badge de statut
     const getStatusColor = (status) => {
         switch (status) {
             case ORDER_STATUSES.ORDERED.name: return 'bg-yellow-500';
@@ -258,12 +264,12 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
         }
     };
 
-    // Helper to get display name from email using the provided map
+    // Aide pour obtenir le nom d'affichage à partir de l'email
     const getDisplayName = (email) => {
         return advisorsMap[email.toLowerCase()]?.name || email;
     };
 
-    // Get the next status button config based on current status and admin role
+    // Obtient la configuration du bouton pour le prochain statut
     const getNextStatusButton = (currentStatus) => {
         if (!isAdmin || currentStatus === ORDER_STATUSES.PICKED_UP.name || currentStatus === ORDER_STATUSES.CANCELLED.name) {
             return null;
@@ -410,9 +416,9 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, isAdmin, onShowHis
 };
 
 
-// Modal for displaying order history
+// Modale pour afficher l'historique d'une commande
 const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
-    // Helper to get display name from email
+    // Aide pour obtenir le nom d'affichage à partir de l'email
     const getDisplayName = (email) => {
         return advisorsMap[email.toLowerCase()]?.name || email;
     };
@@ -448,7 +454,7 @@ const OrderHistoryModal = ({ order, onClose, advisorsMap }) => {
     );
 };
 
-// Confirmation modal for critical actions (e.g., deletion, cancellation)
+// Composant de modale de confirmation pour les actions critiques
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in">
         <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up">
@@ -464,7 +470,7 @@ const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confir
     </div>
 );
 
-// Login form component
+// Composant de formulaire de connexion
 const LoginForm = ({ onLogin, error, onClose }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -488,7 +494,7 @@ const LoginForm = ({ onLogin, error, onClose }) => {
     );
 };
 
-// Advisor Management Component
+// Composant de gestion des conseillers (nouvelle fonctionnalité)
 const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDeleteAdvisor, onClose, isAdmin, adminEmail }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -497,13 +503,15 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
     const [editAdvisorId, setEditAdvisorId] = useState(null);
     const [formError, setFormError] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [tempAdminEmail, setTempAdminEmail] = useState('');
-    const [tempAdminPassword, setTempAdminPassword] = useState('');
 
+    // Placeholder pour la fonction showToast du composant parent
     const showToast = useCallback((message, type) => {
+        // Cette fonction sera remplacée par le vrai showToast du composant App via une prop
+        // Pour l'instant, elle se contente d'afficher dans la console.
         console.log(`Toast (${type}): ${message}`);
     }, []);
 
+    // Gère l'ajout ou la mise à jour d'un conseiller
     const handleAddUpdateAdvisor = async (e) => {
         e.preventDefault();
         setFormError(null);
@@ -517,23 +525,25 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         }
         setIsSaving(true);
         try {
-            if (!editAdvisorId) {
+            if (!editAdvisorId) { // Création d'un nouvel utilisateur dans Firebase Auth
                 const createdUserCredential = await createUserWithEmailAndPassword(auth, email, password);
 
+                // Sauvegarde du profil du conseiller dans Firestore
                 await onSaveAdvisor({
-                    id: email.toLowerCase(),
+                    id: email.toLowerCase(), // L'ID du document Firestore sera l'email
                     name: name.trim(),
                     email: email.trim().toLowerCase(),
                     role: role,
                 });
 
+                // Déconnexion immédiate du nouvel utilisateur (pour éviter le "cafouillage")
                 await auth.signOut();
 
                 setFormError(null);
                 setName(''); setEmail(''); setPassword(''); setRole('counselor'); setEditAdvisorId(null);
                 showToast("Conseiller créé. Veuillez vous reconnecter en tant qu'administrateur.", 'success');
-                onClose();
-            } else {
+                onClose(); // Ferme la modale
+            } else { // Modification d'un conseiller existant
                 await onSaveAdvisor({
                     id: editAdvisorId,
                     name: name.trim(),
@@ -557,6 +567,8 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
             setFormError(`Erreur : ${errorMessage}`);
             showToast(`Échec de l'opération : ${errorMessage}`, 'error');
 
+            // Si une erreur s'est produite lors de la création et qu'un nouvel utilisateur a été partiellement créé,
+            // tentez de le déconnecter pour éviter le "cafouillage".
             if (!editAdvisorId && auth.currentUser && auth.currentUser.email === email.trim().toLowerCase()) {
                 await auth.signOut().catch(e => console.error("Error signing out after partial creation:", e));
             }
@@ -566,6 +578,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         }
     };
 
+    // Gère le clic sur le bouton d'édition
     const handleEditClick = (advisor) => {
         setName(advisor.name);
         setEmail(advisor.email);
@@ -574,6 +587,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         setEditAdvisorId(advisor.id);
     };
 
+    // Gère l'annulation de l'édition
     const handleCancelEdit = () => {
         setName('');
         setEmail('');
@@ -583,6 +597,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         setFormError(null);
     };
 
+    // Gère la suppression d'un conseiller
     const handleDeleteClick = async (advisor) => {
         if (advisor.email === adminEmail) {
             setFormError("Vous ne pouvez pas supprimer le compte administrateur principal.");
@@ -592,7 +607,7 @@ const AdvisorManagementForm = ({ db, auth, appId, advisors, onSaveAdvisor, onDel
         if (window.confirm(`Êtes-vous sûr de vouloir supprimer le conseiller ${advisor.name} (${advisor.email})? Cette action est irréversible et supprime le profil du conseiller. Pour des raisons de sécurité côté client, cela ne supprime PAS le compte d'authentification Firebase associé. Vous devrez le faire manuellement dans la console Firebase Auth.`)) {
              setIsSaving(true);
              try {
-                 await onDeleteAdvisor(advisor.id);
+                 await onDeleteAdvisor(advisor.id); // Supprime le profil Firestore
                  showToast("Conseiller supprimé de la liste. Pensez à supprimer le compte Auth manuellement.", 'success');
              } catch (error) {
                  setFormError(`Erreur lors de la suppression: ${error.message}`);
@@ -1177,7 +1192,7 @@ export default function App() {
             <div className="max-w-7xl mx-auto">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1>
+                        <h1 className="text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1> {/* Changed title here */}
                         <p className="text-gray-400 mt-1">
                             Suivez vos commandes d'accessoires en temps réel.
                         </p>
