@@ -17,7 +17,7 @@ import {
 // Configuration Firebase pour l'initialisation de l'application.
 // Ces valeurs sont spécifiques à votre projet Firebase.
 const firebaseConfig = {
-    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
+    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMePfg", // Clé API exemple, à remplacer
     authDomain: "aod-tracker-os.firebaseapp.com",
     projectId: "aod-tracker-os",
     storageBucket: "aod-tracker-os.appspot.com",
@@ -1287,13 +1287,14 @@ export default function App() {
             setOrderToDeleteId(null);
             showToast("Commande supprimée avec succès.", 'success');
         } catch (e) {
-            console.error("Error deleting order:", e);
-            setDbError("Échec de la suppression de la commande. Vérifiez la console.");
-            showToast("Échec de la suppression de la commande.", 'error');
-        } finally {
-            setIsSaving(false);
-        }
-    }, [db, currentUser, isAdmin, orderToDeleteId, showToast]);
+                console.error("Error deleting advisor:", e);
+                setDbError("Échec de la suppression du conseiller.");
+                showToast("Échec de la suppression du conseiller.", 'error');
+            } finally {
+                setIsSaving(false);
+            }
+        }, [db, isAdmin, showToast]);
+
 
     const handleShowOrderHistory = useCallback((order) => {
         setSelectedOrderForHistory(order);
@@ -1427,7 +1428,8 @@ export default function App() {
                 />
             )}
 
-            <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6"> {/* Added responsive padding */}
+            {/* Conteneur principal avec largeur maximale et centrage */}
+            <div className="max-w-md mx-auto px-2 sm:px-4 lg:px-6"> 
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
                         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker OS</h1> {/* Responsive text size */}
@@ -1573,7 +1575,7 @@ export default function App() {
                 )}
 
                 {!isLoading && filteredAndSortedOrders.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in"> {/* Grid layout for cards, responsive columns */}
+                    <div className="grid grid-cols-1 gap-6 animate-fade-in"> {/* Modifié pour une seule colonne */}
                         {filteredAndSortedOrders.map((order) => (
                             <OrderCard
                                 key={order.id}
