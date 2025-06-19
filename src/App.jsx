@@ -7,7 +7,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 
 // Importations des icônes Lucide React
 import {
-    PlusCircle, Package, CheckCircle, Bell, Truck, History, User, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, RefreshCcw, Archive, Undo2, List, XCircle, FileWarning
+    PlusCircle, Package, CheckCircle, Bell, History, User, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, Archive, Undo2, List, XCircle, FileWarning
 } from 'lucide-react';
 
 // =================================================================
@@ -25,13 +25,11 @@ const firebaseConfig = {
 
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 
-// MODIFICATION: Liste des administrateurs
 const ADMIN_EMAILS = [
     "jullien.gault@orange-store.com",
     "marvyn.ammiche@orange-store.com"
 ];
 
-// MODIFICATION: Mappage des noms spécifiques pour un affichage propre
 const SPECIAL_USER_NAMES = {
     "jullien.gault@orange-store.com": "Jullien",
     "marvyn.ammiche@orange-store.com": "Marvyn"
@@ -64,14 +62,11 @@ const ORDER_STATUSES_CONFIG = {
     [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Commande Annulée', colorClass: 'bg-red-700', icon: XCircle }
 };
 
-// MODIFICATION: Fonction mise à jour pour gérer plusieurs noms spécifiques
 const getUserDisplayName = (email) => {
     if (!email) return 'N/A';
-    // Vérifie d'abord si l'email a un nom spécifique défini
     if (SPECIAL_USER_NAMES[email]) {
         return SPECIAL_USER_NAMES[email];
     }
-    // Logique par défaut pour les autres utilisateurs
     const namePart = email.split('@')[0].split('.')[0];
     return namePart.charAt(0).toUpperCase() + namePart.slice(1);
 };
@@ -155,11 +150,11 @@ const formatOrderDate = (isoString) => {
 const TailwindColorSafelist = () => (
     <div style={{ display: 'none' }}>
         <span className="bg-yellow-500"></span><span className="text-yellow-500"></span><span className="text-yellow-400"></span>
-        <span className="bg-green-500"></span><span className="text-green-500"></span><span className="text-green-400"></span>
-        <span className="bg-blue-500"></span><span className="bg-blue-600"></span><span className="hover:bg-blue-700"></span><span className="text-blue-500"></span><span className="text-blue-400"></span>
-        <span className="bg-purple-600"></span><span className="text-purple-600"></span><span className="text-purple-400"></span>
-        <span className="bg-gray-600"></span><span className="text-gray-600"></span><span className="text-gray-500"></span><span className="text-gray-400"></span>
-        <span className="bg-red-700"></span><span className="bg-red-600"></span><span className="text-red-700"></span><span className="text-red-400"></span>
+        <span className="bg-green-500"></span><span className="text-green-500"></span><span className="text-green-400"></span><span className="bg-green-600"></span><span className="hover:bg-green-700"></span>
+        <span className="bg-blue-400"></span><span className="bg-blue-500"></span><span className="bg-blue-600"></span><span className="hover:bg-blue-700"></span><span className="text-blue-500"></span><span className="text-blue-400"></span>
+        <span className="bg-purple-600"></span><span className="hover:bg-purple-700"></span><span className="text-purple-600"></span><span className="text-purple-400"></span>
+        <span className="bg-gray-600"></span><span className="hover:bg-gray-700"></span><span className="text-gray-600"></span><span className="text-gray-500"></span><span className="text-gray-400"></span>
+        <span className="bg-red-700"></span><span className="bg-red-600"></span><span className="hover:bg-red-700"></span><span className="hover:bg-red-800"></span><span className="text-red-700"></span><span className="text-red-400"></span>
         <span className="bg-yellow-600"></span><span className="hover:bg-yellow-700"></span>
     </div>
 );
@@ -191,7 +186,7 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
     const [isOpen, setIsOpen] = useState(false);
 
     const displayStatus = getEffectiveOrderStatus(order);
-    const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500' };
+    const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500', icon: Info };
 
     const canNotify = displayStatus === ORDER_STATUS.READY_FOR_PICKUP;
     const canBePickedUp = displayStatus === ORDER_STATUS.NOTIFIED;
@@ -199,6 +194,9 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
 
     const statusHistory = (order.history || []).filter(e => e.action.includes('**'));
     const canRollback = statusHistory.length >= 2 && ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
+    
+    // **MODIFICATION**: Les commandes non archivées/annulées peuvent être modifiées par n'importe qui
+    const canEdit = ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
 
     return (
         <div className="bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:shadow-2xl hover:ring-2 hover:ring-blue-500/50">
@@ -227,6 +225,27 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
             
             <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
                 <div className="p-4 sm:p-6 border-t border-gray-700">
+                    
+                    {/* MODIFICATION : Section ticket de caisse et notes déplacée ici */}
+                    {(order.receiptNumber || order.orderNotes) && (
+                        <div className="mb-4 pb-4 border-b border-gray-700/60 space-y-3">
+                            {order.receiptNumber && (
+                                <div className="flex items-center gap-2.5 text-sm text-gray-300">
+                                    <ReceiptText size={16} className="text-gray-400 flex-shrink-0" />
+                                    <span className="font-semibold">Ticket de caisse:</span>
+                                    <span className="font-mono bg-gray-700 px-2 py-0.5 rounded-md text-white">{order.receiptNumber}</span>
+                                </div>
+                            )}
+                            {order.orderNotes && (
+                                <div className="flex items-start gap-2.5 text-sm text-gray-300">
+                                    <Info size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                                    <span className="font-semibold">Notes:</span>
+                                    <p className="text-gray-200 italic whitespace-pre-wrap flex-1">{order.orderNotes}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <h4 className="text-md font-semibold text-gray-300 mb-3">Gestion des articles :</h4>
                     <div className="space-y-3">
                         {order.items?.map(item => (
@@ -249,25 +268,6 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                         ))}
                     </div>
 
-                    {(order.receiptNumber || order.orderNotes) && (
-                      <div className="mt-4 pt-4 border-t border-gray-700/60 space-y-3">
-                        {order.receiptNumber && (
-                          <div className="flex items-center gap-2.5 text-sm text-gray-300">
-                            <ReceiptText size={16} className="text-gray-400 flex-shrink-0" />
-                            <span className="font-semibold">Ticket de caisse:</span>
-                            <span className="font-mono bg-gray-700 px-2 py-0.5 rounded-md text-white">{order.receiptNumber}</span>
-                          </div>
-                        )}
-                        {order.orderNotes && (
-                          <div className="flex items-start gap-2.5 text-sm text-gray-300">
-                            <Info size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                            <span className="font-semibold">Notes:</span>
-                            <p className="text-gray-200 italic whitespace-pre-wrap flex-1">{order.orderNotes}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     <div className="mt-4 pt-4 border-t border-gray-700">
                         <h4 className="text-md font-semibold text-gray-300 mb-2">Actions sur la commande</h4>
                          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
@@ -275,8 +275,13 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                             {canNotify && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.NOTIFIED)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir le client</button>}
                             {canBePickedUp && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Marquer comme Retiré</button>}
                             {canBeArchived && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}
+                            
                             <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
-                            {isAdmin && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
+                            
+                            {/* MODIFICATION : Le bouton Modifier est visible pour tous si la commande est modifiable */}
+                            {canEdit && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
+                            
+                            {/* Le bouton Supprimer reste réservé aux admins */}
                             {isAdmin && <button onClick={() => onRequestDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}
                         </div>
                     </div>
@@ -337,7 +342,6 @@ export default function App() {
             const unsubscribe = onAuthStateChanged(authInstance, (user) => {
                 if (user) { 
                     setCurrentUser(user);
-                    // MODIFICATION: Vérifie si l'utilisateur fait partie de la liste des admins
                     setIsAdmin(ADMIN_EMAILS.includes(user.email)); 
                     setShowLogin(false); 
                 } 
@@ -404,7 +408,13 @@ export default function App() {
             if (editingOrder) {
                 const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id);
                 const existingItems = editingOrder.items || [];
-                const updatedItems = orderData.items.map((newItem) => { const existing = existingItems.find(e => e.itemName === newItem.itemName); return existing ? existing : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED }; });
+                // Compare new items with existing ones based on name to preserve status of old items
+                const updatedItems = orderData.items.map((newItem) => {
+                    const existing = existingItems.find(e => e.itemName === newItem.itemName);
+                    // If item existed, keep its properties, otherwise create a new item object
+                    return existing ? { ...existing, quantity: newItem.quantity } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED };
+                });
+
                 await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande **modifiée**", by: userInfo }] });
                 showToast("Commande modifiée !", 'success');
             } else {
@@ -418,7 +428,7 @@ export default function App() {
         finally { setIsSaving(false); }
     }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
     
-    const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus) => {
+    const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus, itemName) => {
         if (!db || !currentUser) return;
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
         const orderToUpdate = orders.find(o => o.id === orderId);
@@ -428,7 +438,6 @@ export default function App() {
         const newGlobalStatus = getDerivedOrderStatus(updatedOrder);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
-        const itemName = orderToUpdate.items.find(i => i.itemId === itemId)?.itemName || 'Article';
         const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme **${newStatus}**`, by: userInfo };
         await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]});
         showToast(`'${itemName}' mis à jour !`, 'success');
@@ -498,14 +507,14 @@ export default function App() {
     // ----- GESTIONNAIRES POUR L'OUVERTURE DES MODALES -----
     
     const closeConfirmation = () => setConfirmation({ isOpen: false, message: '', onConfirm: () => {} });
-    const handleRequestDelete = (orderId) => setConfirmation({ isOpen: true, message: "Voulez-vous vraiment supprimer définitivement cette commande ?", onConfirm: () => handleConfirmDelete(orderId), confirmColor: 'bg-red-600' });
-    const handleRequestItemStatusUpdate = (orderId, itemId, newStatus, itemName) => setConfirmation({ isOpen: true, message: `Confirmez-vous vouloir marquer l'article '${itemName}' comme Reçu ?`, onConfirm: () => handleUpdateItemStatus(orderId, itemId, newStatus), confirmColor: 'bg-green-600' });
+    const handleRequestDelete = (orderId) => setConfirmation({ isOpen: true, message: "Voulez-vous vraiment supprimer définitivement cette commande ?", onConfirm: () => {handleConfirmDelete(orderId); closeConfirmation();}, confirmColor: 'bg-red-600', cancelText: 'Annuler' });
+    const handleRequestItemStatusUpdate = (orderId, itemId, newStatus, itemName) => setConfirmation({ isOpen: true, message: `Confirmez-vous vouloir marquer l'article '${itemName}' comme Reçu ?`, onConfirm: () => {handleUpdateItemStatus(orderId, itemId, newStatus, itemName); closeConfirmation(); }, confirmColor: 'bg-green-600' });
     const handleRequestOrderStatusUpdate = (order, newStatus) => {
         let message = `Voulez-vous vraiment changer le statut à '${newStatus}' ?`, color = 'bg-blue-600';
         if (newStatus === ORDER_STATUS.NOTIFIED) { message = "Confirmez-vous avoir prévenu le client ?"; color = 'bg-blue-600'; }
         if (newStatus === ORDER_STATUS.PICKED_UP) { message = "Le client a-t-il bien retiré sa commande ?"; color = 'bg-purple-600'; }
         if (newStatus === ORDER_STATUS.ARCHIVED) { message = "Archiver cette commande ? Elle n'apparaîtra plus dans la liste active."; color = 'bg-gray-600'; }
-        setConfirmation({ isOpen: true, message, onConfirm: () => handleUpdateOrderStatus(order.id, newStatus), confirmColor: color });
+        setConfirmation({ isOpen: true, message, onConfirm: () => {handleUpdateOrderStatus(order.id, newStatus); closeConfirmation(); }, confirmColor: color });
     };
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
     const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
@@ -523,7 +532,7 @@ export default function App() {
             <AnimationStyles />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             
-            {confirmation.isOpen && ( <ConfirmationModal message={confirmation.message} onConfirm={() => { confirmation.onConfirm(); closeConfirmation(); }} onCancel={closeConfirmation} confirmColor={confirmation.confirmColor} /> )}
+            {confirmation.isOpen && ( <ConfirmationModal message={confirmation.message} onConfirm={confirmation.onConfirm} onCancel={closeConfirmation} confirmColor={confirmation.confirmColor} /> )}
             {showItemCancelModal && ( <CancellationModal title={`Annuler l'article "${itemToCancel?.itemName}"`} message="Veuillez indiquer la raison de cette annulation." onConfirm={handleConfirmCancelItem} onCancel={() => setShowItemCancelModal(false)} /> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
