@@ -117,6 +117,21 @@ const formatPhoneNumber = (phoneStr) => {
     return cleaned;
 };
 
+// NOUVELLE FONCTION: Pour formater la date de commande de manière lisible
+const formatOrderDate = (isoString) => {
+    if (!isoString) return 'Date inconnue';
+    try {
+        return new Date(isoString).toLocaleString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return 'Date invalide';
+    }
+};
 
 // =================================================================
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
@@ -173,15 +188,26 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
     return (
         <div className="bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:shadow-2xl hover:ring-2 hover:ring-blue-500/50">
             <div className="flex justify-between items-start p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={() => setIsOpen(!isOpen)}>
-                <div>
+                <div className="flex-1 pr-4">
                     <h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3>
+                    
+                    {/* Infos client prioritaires */}
                     <div className="mt-2 space-y-1 text-sm text-gray-300">
                         {order.clientPhone && <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400"/><span>{formatPhoneNumber(order.clientPhone)}</span></div>}
                         {order.clientEmail && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400"/><span>{order.clientEmail}</span></div>}
                     </div>
+
+                    {/* NOUVEAU: Infos sur la commande (conseiller et date) */}
+                    <div className="mt-3 pt-3 border-t border-gray-700/60 flex items-center flex-wrap gap-x-2 text-xs text-gray-400">
+                        <User size={14} />
+                        <span>Par</span>
+                        <span className="font-semibold text-gray-300">{order.orderedBy?.name || 'N/A'}</span>
+                        <span className="hidden sm:inline">le</span>
+                        <span className="font-semibold text-gray-300">{formatOrderDate(order.orderDate)}</span>
+                    </div>
                 </div>
                 <div className="flex flex-col items-end gap-3">
-                    <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${statusConfig.colorClass}`}>{statusConfig.label}</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${statusConfig.colorClass} text-center`}>{statusConfig.label}</span>
                     <ChevronDown size={24} className={`text-gray-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`} />
                 </div>
             </div>
@@ -210,7 +236,6 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                         ))}
                     </div>
 
-                    {/* NOUVEAU: Affichage des notes et du ticket de caisse */}
                     {(order.receiptNumber || order.orderNotes) && (
                       <div className="mt-4 pt-4 border-t border-gray-700/60 space-y-3">
                         {order.receiptNumber && (
@@ -229,7 +254,6 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                         )}
                       </div>
                     )}
-
 
                     <div className="mt-4 pt-4 border-t border-gray-700">
                         <h4 className="text-md font-semibold text-gray-300 mb-2">Actions sur la commande</h4>
@@ -279,8 +303,6 @@ export default function App() {
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
     const [showRollbackModal, setShowRollbackModal] = useState(false);
     const [orderToRollback, setOrderToRollback] = useState(null);
-    
-    // NOUVEAU : État générique pour les modales de confirmation
     const [confirmation, setConfirmation] = useState({ isOpen: false, message: '', onConfirm: () => {}, confirmColor: 'bg-blue-600' });
 
     // États des filtres et de l'affichage
@@ -290,7 +312,6 @@ export default function App() {
     const [viewMode, setViewMode] = useState('active');
     const [toast, setToast] = useState(null);
 
-    // Initialisation
     useEffect(() => { document.title = "AOD Tracker OS"; }, []);
 
     useEffect(() => {
@@ -301,15 +322,8 @@ export default function App() {
             setAuth(authInstance);
             setDb(dbInstance);
             const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-                if (user) {
-                    setCurrentUser(user);
-                    setIsAdmin(user.email === ADMIN_EMAIL);
-                    setShowLogin(false);
-                } else {
-                    setCurrentUser(null);
-                    setIsAdmin(false);
-                    setShowLogin(true);
-                }
+                if (user) { setCurrentUser(user); setIsAdmin(user.email === ADMIN_EMAIL); setShowLogin(false); } 
+                else { setCurrentUser(null); setIsAdmin(false); setShowLogin(true); }
                 setAuthReady(true);
             });
             return () => unsubscribe();
@@ -322,12 +336,8 @@ export default function App() {
 
     const showToast = useCallback((message, type = 'success') => { setToast({ message, type }); setTimeout(() => setToast(null), 3000); }, []);
 
-    // Chargement des données
     useEffect(() => {
-        if (!authReady || !db || !currentUser) {
-            if(authReady) setIsLoading(false);
-            return;
-        }
+        if (!authReady || !db || !currentUser) { if(authReady) setIsLoading(false); return; }
         setIsLoading(true);
         const ordersCollectionRef = collection(db, `artifacts/${APP_ID}/public/data/orders`);
         const q = query(ordersCollectionRef, orderBy("orderDate", "desc"));
@@ -350,24 +360,17 @@ export default function App() {
         return () => unsubscribe();
     }, [authReady, db, currentUser]);
 
-    // Logique de filtrage
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
         const finalStatuses = [ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED];
-        if (viewMode === 'active') {
-            currentOrders = currentOrders.filter(order => !finalStatuses.includes(order.currentStatus));
-        } else {
-            currentOrders = currentOrders.filter(order => finalStatuses.includes(order.currentStatus));
-        }
-        if (selectedStatusFilter !== 'All' && viewMode === 'active') { 
-            currentOrders = currentOrders.filter(order => getEffectiveOrderStatus(order) === selectedStatusFilter); 
-        }
-        if (selectedAdvisorFilter !== 'All') { currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); }
+        if (viewMode === 'active') currentOrders = currentOrders.filter(order => !finalStatuses.includes(order.currentStatus));
+        else currentOrders = currentOrders.filter(order => finalStatuses.includes(order.currentStatus));
+        if (selectedStatusFilter !== 'All' && viewMode === 'active') currentOrders = currentOrders.filter(order => getEffectiveOrderStatus(order) === selectedStatusFilter); 
+        if (selectedAdvisorFilter !== 'All') currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase());
         if (searchTerm.trim()) { const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); currentOrders = currentOrders.filter(order => ((order.clientFirstName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientLastName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientEmail || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientPhone || '').toLowerCase().includes(lowerCaseSearchTerm)) || (order.items?.some(item => (item.itemName || '').toLowerCase().includes(lowerCaseSearchTerm))) || ((order.receiptNumber || '').toLowerCase().includes(lowerCaseSearchTerm)) ); }
         return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
-    // Gestionnaires d'authentification
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service d'authentification non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
     const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'counselor' }; }, [currentUser]);
@@ -393,11 +396,8 @@ export default function App() {
                 showToast("Commande ajoutée !", 'success');
             }
             setShowOrderForm(false); setEditingOrder(null);
-        } catch (e) {
-            console.error(e); showToast("Échec de l'enregistrement.", 'error');
-        } finally {
-            setIsSaving(false);
-        }
+        } catch (e) { console.error(e); showToast("Échec de l'enregistrement.", 'error'); } 
+        finally { setIsSaving(false); }
     }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
     
     const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus) => {
@@ -436,7 +436,6 @@ export default function App() {
     const handleUpdateOrderStatus = useCallback(async (orderId, newStatus) => {
         if (!db || !currentUser) return;
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
-        const orderToUpdate = orders.find(o => o.id === orderId);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
         let actionText = `Statut changé pour '**${newStatus}**'`;
@@ -444,21 +443,16 @@ export default function App() {
         if (newStatus === ORDER_STATUS.PICKED_UP) actionText = "Commande **retirée** par le client";
         if (newStatus === ORDER_STATUS.ARCHIVED) actionText = "Commande **archivée**";
         const historyEvent = { timestamp: now, action: actionText, by: userInfo };
-        await updateDoc(orderRef, { currentStatus: newStatus, history: [...(orderToUpdate.history || []), historyEvent] });
+        await updateDoc(orderRef, { currentStatus: newStatus, history: [...(orders.find(o => o.id === orderId)?.history || []), historyEvent] });
         showToast(`Commande mise à jour !`, 'success');
     }, [db, currentUser, orders, showToast, getCurrentUserInfo]);
 
     const handleConfirmDelete = useCallback(async (orderId) => { 
         if (!db || !isAdmin || !orderId) { showToast("Action non autorisée.", 'error'); return; } 
         setIsSaving(true); 
-        try { 
-            await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId)); 
-            showToast("Commande supprimée.", 'success'); 
-        } catch (e) { 
-            showToast("Échec de la suppression.", 'error'); 
-        } finally { 
-            setIsSaving(false); 
-        } 
+        try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId)); showToast("Commande supprimée.", 'success'); } 
+        catch (e) { showToast("Échec de la suppression.", 'error'); } 
+        finally { setIsSaving(false); } 
     }, [db, isAdmin, showToast]);
 
     const handleConfirmRollback = useCallback(async (reason) => {
@@ -479,47 +473,22 @@ export default function App() {
         try {
             await updateDoc(orderRef, { currentStatus: statusToRestore, history: [...(orderToRollback.history || []), historyEvent] });
             showToast(`Statut revenu à '${statusToRestore}'.`, 'success');
-        } catch (error) { console.error("Error rolling back status:", error); showToast("Échec du retour en arrière.", 'error'); } finally { setShowRollbackModal(false); setOrderToRollback(null); }
+        } catch (error) { console.error("Error rolling back status:", error); showToast("Échec du retour en arrière.", 'error'); } 
+        finally { setShowRollbackModal(false); setOrderToRollback(null); }
     }, [db, currentUser, orderToRollback, showToast, getCurrentUserInfo]);
 
-
     // ----- GESTIONNAIRES POUR L'OUVERTURE DES MODALES -----
-
+    
     const closeConfirmation = () => setConfirmation({ isOpen: false, message: '', onConfirm: () => {} });
-    
-    const handleRequestDelete = (orderId) => {
-        setConfirmation({
-            isOpen: true,
-            message: "Voulez-vous vraiment supprimer définitivement cette commande ?",
-            onConfirm: () => handleConfirmDelete(orderId),
-            confirmColor: 'bg-red-600'
-        });
-    };
-
-    const handleRequestItemStatusUpdate = (orderId, itemId, newStatus, itemName) => {
-        setConfirmation({
-            isOpen: true,
-            message: `Confirmez-vous vouloir marquer l'article '${itemName}' comme Reçu ?`,
-            onConfirm: () => handleUpdateItemStatus(orderId, itemId, newStatus),
-            confirmColor: 'bg-green-600'
-        });
-    };
-    
+    const handleRequestDelete = (orderId) => setConfirmation({ isOpen: true, message: "Voulez-vous vraiment supprimer définitivement cette commande ?", onConfirm: () => handleConfirmDelete(orderId), confirmColor: 'bg-red-600' });
+    const handleRequestItemStatusUpdate = (orderId, itemId, newStatus, itemName) => setConfirmation({ isOpen: true, message: `Confirmez-vous vouloir marquer l'article '${itemName}' comme Reçu ?`, onConfirm: () => handleUpdateItemStatus(orderId, itemId, newStatus), confirmColor: 'bg-green-600' });
     const handleRequestOrderStatusUpdate = (order, newStatus) => {
-        let message = `Voulez-vous vraiment changer le statut à '${newStatus}' ?`;
-        let color = 'bg-blue-600';
+        let message = `Voulez-vous vraiment changer le statut à '${newStatus}' ?`, color = 'bg-blue-600';
         if (newStatus === ORDER_STATUS.NOTIFIED) { message = "Confirmez-vous avoir prévenu le client ?"; color = 'bg-blue-600'; }
         if (newStatus === ORDER_STATUS.PICKED_UP) { message = "Le client a-t-il bien retiré sa commande ?"; color = 'bg-purple-600'; }
         if (newStatus === ORDER_STATUS.ARCHIVED) { message = "Archiver cette commande ? Elle n'apparaîtra plus dans la liste active."; color = 'bg-gray-600'; }
-        
-        setConfirmation({
-            isOpen: true,
-            message: message,
-            onConfirm: () => handleUpdateOrderStatus(order.id, newStatus),
-            confirmColor: color
-        });
+        setConfirmation({ isOpen: true, message, onConfirm: () => handleUpdateOrderStatus(order.id, newStatus), confirmColor: color });
     };
-
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
     const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
     const handleCancelItem = (orderId, itemId, itemName) => { setItemToCancel({ orderId, itemId, itemName }); setShowItemCancelModal(true); };
@@ -536,7 +505,6 @@ export default function App() {
             <AnimationStyles />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             
-            {/* Gestion centralisée des modales */}
             {confirmation.isOpen && ( <ConfirmationModal message={confirmation.message} onConfirm={() => { confirmation.onConfirm(); closeConfirmation(); }} onCancel={closeConfirmation} confirmColor={confirmation.confirmColor} /> )}
             {showItemCancelModal && ( <CancellationModal title={`Annuler l'article "${itemToCancel?.itemName}"`} message="Veuillez indiquer la raison de cette annulation." onConfirm={handleConfirmCancelItem} onCancel={() => setShowItemCancelModal(false)} /> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
