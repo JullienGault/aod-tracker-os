@@ -87,37 +87,47 @@ const getDerivedOrderStatus = (order) => {
     return ORDER_STATUS.ORDERED;
 };
 
-// NOUVELLE FONCTION AJOUTÉE POUR CORRIGER LE FILTRE
 const getEffectiveOrderStatus = (order) => {
     if (!order) return null;
-
-    // Les statuts "avancés" (Prévenu, Retiré...) ont la priorité sur le statut calculé.
     const advancedStatuses = [
         ORDER_STATUS.NOTIFIED,
         ORDER_STATUS.PICKED_UP,
         ORDER_STATUS.ARCHIVED,
         ORDER_STATUS.COMPLETE_CANCELLED
     ];
-
     if (advancedStatuses.includes(order.currentStatus)) {
         return order.currentStatus;
     }
-
-    // Sinon, on retourne le statut calculé à partir des articles.
     return getDerivedOrderStatus(order);
 };
 
-
+// MODIFICATION: Logique des icônes et couleurs déplacée dans des fonctions dédiées
 const getIconForHistoryAction = (action) => {
     if (!action) return History;
-    if (action.startsWith('Retour arrière')) return Undo2;
-    const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === action || action.includes(s.label));
-    if (statusConfig) return statusConfig.icon;
-    if (action.includes('marqué comme Reçu')) return CheckCircle;
-    if (action.includes('annulé')) return XCircle;
-    if (action === 'Commande modifiée') return Edit;
+    const lowerCaseAction = action.toLowerCase();
+    if (lowerCaseAction.includes('créée')) return Package;
+    if (lowerCaseAction.includes('prévenu')) return Bell;
+    if (lowerCaseAction.includes('retirée')) return UserCheck;
+    if (lowerCaseAction.includes('archivée')) return Archive;
+    if (lowerCaseAction.includes('reçu')) return CheckCircle;
+    if (lowerCaseAction.includes('annulé')) return XCircle;
+    if (lowerCaseAction.includes('modifiée')) return Edit;
+    if (lowerCaseAction.includes('retour arrière')) return Undo2;
     return History;
 };
+
+const getIconColorClass = (action) => {
+    if (!action) return 'text-gray-400';
+    const lowerCaseAction = action.toLowerCase();
+    if (lowerCaseAction.includes('créée') || lowerCaseAction.includes('retour arrière')) return 'text-yellow-400';
+    if (lowerCaseAction.includes('reçu')) return 'text-green-400';
+    if (lowerCaseAction.includes('prévenu')) return 'text-blue-400';
+    if (lowerCaseAction.includes('retirée') || lowerCaseAction.includes('modifiée')) return 'text-purple-400';
+    if (lowerCaseAction.includes('annulé')) return 'text-red-400';
+    if (lowerCaseAction.includes('archivée')) return 'text-gray-500';
+    return 'text-gray-400';
+};
+
 
 const formatPhoneNumber = (phoneStr) => {
     if (!phoneStr) return null;
@@ -134,20 +144,32 @@ const formatPhoneNumber = (phoneStr) => {
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
 
+// MODIFICATION: Ajout des nouvelles couleurs de texte pour le safelisting
 const TailwindColorSafelist = () => (
     <div style={{ display: 'none' }}>
-        <span className="text-yellow-500"></span><span className="bg-yellow-500"></span>
-        <span className="text-green-500"></span><span className="bg-green-500"></span>
-        <span className="text-blue-500"></span><span className="bg-blue-500"></span>
-        <span className="text-blue-400"></span><span className="bg-blue-400"></span>
-        <span className="text-purple-600"></span><span className="bg-purple-600"></span>
-        <span className="text-gray-600"></span><span className="bg-gray-600"></span>
-        <span className="text-red-700"></span><span className="bg-red-700"></span>
-        <span className="text-purple-400"></span>
-        <span className="text-gray-400"></span>
+        <span className="bg-yellow-500"></span><span className="text-yellow-500"></span><span className="text-yellow-400"></span>
+        <span className="bg-green-500"></span><span className="text-green-500"></span><span className="text-green-400"></span>
+        <span className="bg-blue-500"></span><span className="text-blue-500"></span><span className="text-blue-400"></span>
+        <span className="bg-purple-600"></span><span className="text-purple-600"></span><span className="text-purple-400"></span>
+        <span className="bg-gray-600"></span><span className="text-gray-600"></span><span className="text-gray-500"></span><span className="text-gray-400"></span>
+        <span className="bg-red-700"></span><span className="text-red-700"></span><span className="text-red-400"></span>
         <span className="bg-yellow-600"></span><span className="hover:bg-yellow-700"></span>
     </div>
 );
+
+// NOUVEAU COMPOSANT : Pour afficher le texte de l'historique avec mise en gras
+const HistoryActionText = ({ text }) => {
+    if (!text) return null;
+    const parts = text.split(/\*\*(.*?)\*\*/g); // Sépare le texte par les **
+    return (
+        <p className="text-white font-medium">
+            {parts.map((part, i) =>
+                i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+            )}
+        </p>
+    );
+};
+
 
 const AnimationStyles = () => ( <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .5s ease-in-out}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}.tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding:8px 12px;background-color:rgba(45,55,72,.9);color:#fff;border-radius:8px;font-size:14px;white-space:pre-wrap;z-index:50;opacity:0;visibility:hidden;transition:opacity .2s ease-in-out,visibility .2s ease-in-out;box-shadow:0 4px 10px rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1)}.group:hover .tooltip{opacity:1;visibility:visible}.custom-scrollbar::-webkit-scrollbar{width:8px}.custom-scrollbar::-webkit-scrollbar-track{background:#374151;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#60A5FA;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb:hover{background:#3B82F6}`}</style> );
 const Tooltip = ({ children, text }) => ( <div className="relative inline-block group">{children}{text && (<div className="tooltip">{text}</div>)}</div> );
@@ -155,30 +177,8 @@ const Toast = ({ message, type, onClose }) => { const bgColor = type === 'succes
 const OrderForm = ({ onSave, initialData, isSaving, onClose }) => { const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || ''); const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || ''); const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || ''); const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || ''); const [receiptNumber, setReceiptNumber] = useState(initialData?.receiptNumber || ''); const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items.map(i => ({itemName: i.itemName, quantity: i.quantity})) : [{ itemName: '', quantity: '' }]); const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || ''); const [formError, setFormError] = useState(null); const handleItemChange = useCallback((index, field, value) => { const newItems = [...items]; newItems[index][field] = value; setItems(newItems); }, [items]); const handleAddItem = useCallback(() => { setItems([...items, { itemName: '', quantity: '' }]); }, [items]); const handleRemoveItem = useCallback((index) => { const newItems = items.filter((_, i) => i !== index); setItems(newItems); }, [items]); const handleSubmit = useCallback(async (e) => { e.preventDefault(); setFormError(null); if (!clientFirstName || !clientLastName) { setFormError("Veuillez remplir le prénom et le nom du client."); return; } const validItems = items.filter(item => item.itemName.trim() && parseInt(item.quantity, 10) > 0); if (validItems.length === 0) { setFormError("Veuillez ajouter au moins un article valide (Nom de l'accessoire et Quantité > 0)."); return; } try { await onSave({ clientFirstName: clientFirstName.trim(), clientLastName: clientLastName.trim(), clientEmail: clientEmail.trim(), clientPhone: clientPhone.trim(), receiptNumber: receiptNumber.trim(), items: validItems.map(item => ({ itemName: item.itemName.trim(), quantity: parseInt(item.quantity, 10) })), orderNotes: orderNotes.trim(), }); onClose(); } catch (error) { console.error("Error saving order:", error); setFormError("Échec de l'enregistrement de la commande. Veuillez réessayer."); } }, [clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, items, orderNotes, onSave, onClose]); return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] md:max-h-[80vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">{initialData ? 'Modifier la commande' : 'Nouvelle Commande d\'Accessoire'}</h2><form onSubmit={handleSubmit} className="space-y-6"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label htmlFor="clientFirstName" className="block text-sm font-medium text-gray-300 mb-2">Prénom client *</label><input id="clientFirstName" type="text" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="clientLastName" className="block text-sm font-medium text-gray-300 mb-2">Nom client *</label><input id="clientLastName" type="text" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div></div><div><label htmlFor="clientEmail" className="block text-sm font-medium text-gray-300 mb-2">Email client (optionnel)</label><input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="clientPhone" className="block text-sm font-medium text-gray-300 mb-2">Téléphone client (optionnel)</label><input id="clientPhone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><hr className="border-gray-700" /><h3 className="text-xl font-semibold text-white mb-4">Articles Commandés *</h3><div className="space-y-3">{items.map((item, index) => ( <div key={index} className="flex flex-col sm:flex-row items-end gap-2 bg-gray-700/50 p-3 rounded-lg"><div className="flex-grow w-full"><label htmlFor={`itemName-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Article</label><input id={`itemName-${index}`} type="text" placeholder="Nom de l'accessoire" value={item.itemName} onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} required className="w-full bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm" /></div><div className="w-full sm:w-auto"><label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Qté</label><input id={`quantity-${index}`} type="number" placeholder="Qté" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} required className="w-full sm:w-20 bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm" /></div>{items.length > 1 && ( <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-red-400 hover:text-red-300 transition-colors self-end sm:self-auto"><MinusCircle size={20} /></button> )}</div> ))}</div><button type="button" onClick={handleAddItem} className="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"><PlusCircle size={20} /> Ajouter un article</button><hr className="border-gray-700" /><div><label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-300 mb-2">Numéro de ticket de caisse (optionnel)</label><input id="receiptNumber" type="text" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="orderNotes" className="block text-sm font-medium text-gray-300 mb-2">Notes (optionnel)</label><textarea id="orderNotes" value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} rows="3" className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg"></textarea></div>{formError && (<div className="bg-red-500/10 border border-red-500/30 text-red-300 p-3 rounded-lg flex items-center space-x-3"><AlertTriangle className="w-5 h-5" /><span>{formError}</span></div>)}<button type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{isSaving ? 'Enregistrement...' : (initialData ? 'Mettre à jour la commande' : 'Passer la commande')}</button></form></div></div> ); };
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-red-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const CancellationModal = ({ onConfirm, onCancel, title, message }) => { const [note, setNote] = useState(''); const handleConfirmClick = () => { onConfirm(note); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-red-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="cancellation-note" className="block text-sm font-medium text-gray-300 mb-2">Raison de l'annulation (optionnel)</label><textarea id="cancellation-note" rows="3" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Rupture de stock fournisseur, demande du client..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Retour</button><button onClick={handleConfirmClick} className="bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Confirmer l'annulation</button></div></div></div> ); };
-// NOUVEAU COMPOSANT : MODALE DE RETOUR ARRIÈRE
-const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => {
-    const [reason, setReason] = useState('');
-    const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } };
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}>
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
-                <div className="text-center">
-                    <Undo2 className="mx-auto h-12 w-12 text-yellow-400" />
-                    <h3 className="mt-4 text-xl font-medium text-white">{title}</h3>
-                    <p className="text-gray-400 mt-2">{message}</p>
-                </div>
-                <div className="mt-6">
-                    <label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison du retour en arrière (obligatoire)</label>
-                    <textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation, le client n'a pas encore été prévenu..."></textarea>
-                </div>
-                <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4">
-                    <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button>
-                    <button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button>
-                </div>
-            </div>
-        </div>
-    );
-};
+const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => { const [reason, setReason] = useState(''); const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison du retour en arrière (obligatoire)</label><textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation, le client n'a pas encore été prévenu..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button><button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button></div></div></div> ); };
+// MODIFICATION : La modale d'historique utilise les nouveaux composants
 const OrderHistoryModal = ({ order, onClose }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
@@ -191,9 +191,9 @@ const OrderHistoryModal = ({ order, onClose }) => {
                             const Icon = getIconForHistoryAction(event.action);
                             return (
                                 <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4">
-                                    <Icon size={20} className="text-gray-400 flex-shrink-0 mt-1" />
+                                    <Icon size={20} className={`${getIconColorClass(event.action)} flex-shrink-0 mt-1`} />
                                     <div className="flex-1">
-                                        <p className="text-white font-medium">{event.action}</p>
+                                        <HistoryActionText text={event.action} />
                                         <p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                                         {event.note && <p className="text-gray-400 text-xs italic mt-2 border-l-2 border-gray-600 pl-2">Note: {event.note}</p>}
                                     </div>
@@ -248,8 +248,7 @@ const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatu
     const canBePickedUp = displayStatus === ORDER_STATUS.NOTIFIED;
     const canBeArchived = displayStatus === ORDER_STATUS.PICKED_UP;
 
-    // Détermine si le retour en arrière est possible
-    const statusHistory = (order.history || []).filter(e => e.action.startsWith("Commande passée au statut") || e.action.startsWith("Commande créée"));
+    const statusHistory = (order.history || []).filter(e => e.action.includes('**'));
     const canRollback = statusHistory.length >= 2 && ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
 
     return (
@@ -340,7 +339,6 @@ export default function App() {
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
     const [viewMode, setViewMode] = useState('active');
     const [toast, setToast] = useState(null);
-    // NOUVEAUX ÉTATS POUR LA MODALE DE RETOUR ARRIÈRE
     const [showRollbackModal, setShowRollbackModal] = useState(false);
     const [orderToRollback, setOrderToRollback] = useState(null);
 
@@ -446,8 +444,8 @@ export default function App() {
                         status: ITEM_STATUS.ORDERED
                     };
                 });
-                
-                await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] });
+                // MODIFICATION : Nouvelle phrase pour l'historique
+                await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande **modifiée**", by: userInfo }] });
                 showToast("Commande modifiée !", 'success');
             } else {
                 const itemsWithStatus = orderData.items.map(item => ({
@@ -455,7 +453,8 @@ export default function App() {
                     itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     status: ITEM_STATUS.ORDERED
                 }));
-                const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande créée`, by: userInfo }]};
+                 // MODIFICATION : Nouvelle phrase pour l'historique
+                const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande **créée**`, by: userInfo }]};
                 await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder);
                 showToast("Commande ajoutée !", 'success');
             }
@@ -481,7 +480,8 @@ export default function App() {
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
         const itemName = orderToUpdate.items.find(i => i.itemId === itemId)?.itemName || 'Article';
-        const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme ${newStatus}`, by: userInfo };
+        // MODIFICATION : Nouvelle phrase pour l'historique
+        const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme **${newStatus}**`, by: userInfo };
 
         await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]});
         showToast(`'${itemName}' mis à jour !`, 'success');
@@ -503,7 +503,8 @@ export default function App() {
         const newGlobalStatus = getDerivedOrderStatus(updatedOrder);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
-        const historyEvent = { timestamp: now, action: `Article '${itemName}' annulé`, by: userInfo, ...(note.trim() && { note: note.trim() }) };
+        // MODIFICATION : Nouvelle phrase pour l'historique
+        const historyEvent = { timestamp: now, action: `Article '${itemName}' **annulé**`, by: userInfo, ...(note.trim() && { note: note.trim() }) };
         await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]});
         showToast(`'${itemName}' a été annulé.`, 'success');
         setShowItemCancelModal(false);
@@ -516,7 +517,23 @@ export default function App() {
         const orderToUpdate = orders.find(o => o.id === orderId);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
-        const historyEvent = { timestamp: now, action: `Commande passée au statut '${newStatus}'`, by: userInfo };
+        
+        // MODIFICATION : Phrases claires pour chaque statut
+        let actionText = `Statut changé pour '**${newStatus}**'`; // Fallback
+        switch (newStatus) {
+            case ORDER_STATUS.NOTIFIED:
+                actionText = "Client **prévenu** de la disponibilité";
+                break;
+            case ORDER_STATUS.PICKED_UP:
+                actionText = "Commande **retirée** par le client";
+                break;
+            case ORDER_STATUS.ARCHIVED:
+                actionText = "Commande **archivée**";
+                break;
+            // Pas de cas pour les statuts dérivés, car ils ne sont pas définis par ce bouton
+        }
+
+        const historyEvent = { timestamp: now, action: actionText, by: userInfo };
         await updateDoc(orderRef, { currentStatus: newStatus, history: [...(orderToUpdate.history || []), historyEvent] });
         showToast(`Commande mise à jour !`, 'success');
     }, [db, currentUser, orders, showToast, getCurrentUserInfo]);
@@ -527,12 +544,26 @@ export default function App() {
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
     const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
     
-    // NOUVELLES FONCTIONS POUR LE RETOUR ARRIÈRE
     const getStatusFromHistoryEvent = (event) => {
         if (!event || !event.action) return null;
-        if (event.action.startsWith("Commande créée")) return ORDER_STATUS.ORDERED;
-        const match = event.action.match(/'([^']+)'/);
-        return match ? match[1] : null;
+        if (event.action.includes('créée')) return ORDER_STATUS.ORDERED;
+        if (event.action.includes('prévenu')) return ORDER_STATUS.READY_FOR_PICKUP; // Le statut AVANT de prévenir
+        if (event.action.includes('retirée')) return ORDER_STATUS.NOTIFIED; // Le statut AVANT de retirer
+        if (event.action.includes('archivée')) return ORDER_STATUS.PICKED_UP; // Le statut AVANT d'archiver
+        
+        const match = event.action.match(/\*\*([^*]+)\*\*/);
+        const status = match ? match[1] : null;
+
+        if (Object.values(ORDER_STATUS).includes(status)) {
+            return status;
+        }
+
+        // Tente de trouver l'état précédent pour un retour arrière
+        if(event.action.includes('Retour arrière')) {
+            return orderToRollback.currentStatus
+        }
+
+        return null;
     };
 
     const handleInitiateRollback = useCallback((order) => {
@@ -541,15 +572,12 @@ export default function App() {
     }, []);
 
     const handleConfirmRollback = useCallback(async (reason) => {
-        if (!db || !currentUser || !orderToRollback) {
-            showToast("Action non autorisée.", 'error'); return;
-        }
+        if (!db || !currentUser || !orderToRollback) { showToast("Action non autorisée.", 'error'); return; }
 
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToRollback.id);
-        const orderToUpdate = orders.find(o => o.id === orderToRollback.id);
-        if (!orderToUpdate) return;
-
-        const statusEvents = (orderToUpdate.history || []).filter(e => e.action.startsWith("Commande passée au statut") || e.action.startsWith("Commande créée"));
+        
+        // On se base sur les actions manuelles qui sont mises en gras
+        const statusEvents = (orderToRollback.history || []).filter(e => e.action.includes('**'));
 
         if (statusEvents.length < 2) {
             showToast("Aucun état précédent à restaurer.", 'error');
@@ -557,8 +585,17 @@ export default function App() {
             return;
         }
 
-        const previousStatusEvent = statusEvents[statusEvents.length - 2];
-        const statusToRestore = getStatusFromHistoryEvent(previousStatusEvent);
+        // On cherche le statut juste avant le dernier changement manuel
+        const lastStatusEvent = statusEvents[statusEvents.length-1].action;
+        let statusToRestore;
+        if(lastStatusEvent.includes('prévenu')) statusToRestore = ORDER_STATUS.READY_FOR_PICKUP;
+        else if(lastStatusEvent.includes('retirée')) statusToRestore = ORDER_STATUS.NOTIFIED;
+        else if(lastStatusEvent.includes('archivée')) statusToRestore = ORDER_STATUS.PICKED_UP;
+        else { // Pour les cas "Reçu", "Annulé" etc.
+            const previousEvent = statusEvents[statusEvents.length - 2].action;
+            const match = previousEvent.match(/\*\*([^*]+)\*\*/);
+            statusToRestore = match ? match[1] : getDerivedOrderStatus(orderToRollback); // Fallback
+        }
 
         if (!statusToRestore) {
             showToast("Erreur: Impossible de déterminer le statut à restaurer.", 'error');
@@ -570,7 +607,7 @@ export default function App() {
         const now = new Date().toISOString();
         const historyEvent = {
             timestamp: now,
-            action: `Retour arrière : Statut restauré à '${statusToRestore}'`,
+            action: `Retour arrière : Statut restauré à **${statusToRestore}**`,
             by: userInfo,
             note: reason.trim()
         };
@@ -578,7 +615,7 @@ export default function App() {
         try {
             await updateDoc(orderRef, {
                 currentStatus: statusToRestore,
-                history: [...(orderToUpdate.history || []), historyEvent]
+                history: [...(orderToRollback.history || []), historyEvent]
             });
             showToast(`Statut revenu à '${statusToRestore}'.`, 'success');
         } catch (error) {
@@ -588,7 +625,7 @@ export default function App() {
             setShowRollbackModal(false);
             setOrderToRollback(null);
         }
-    }, [db, currentUser, orders, orderToRollback, showToast, getCurrentUserInfo]);
+    }, [db, currentUser, orderToRollback, showToast, getCurrentUserInfo]);
 
     if (!authReady) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /></div> ); }
     if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} /></div> ); }
@@ -602,7 +639,6 @@ export default function App() {
             {showItemCancelModal && ( <CancellationModal title={`Annuler l'article "${itemToCancel?.itemName}"`} message="Veuillez indiquer la raison de cette annulation." onConfirm={handleConfirmCancelItem} onCancel={() => setShowItemCancelModal(false)} /> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
-            {/* NOUVELLE MODALE POUR LE RETOUR ARRIÈRE */}
             {showRollbackModal && orderToRollback && (
                 <RollbackStatusModal
                     title={`Annuler le dernier changement de statut ?`}
@@ -674,7 +710,7 @@ export default function App() {
                                 onShowHistory={handleShowOrderHistory}
                                 onEdit={handleEditOrder}
                                 onDelete={handleDeleteOrder}
-                                onInitiateRollback={handleInitiateRollback} // <-- NOUVELLE PROP
+                                onInitiateRollback={handleInitiateRollback}
                             />
                         ))}
                     </div>
