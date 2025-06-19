@@ -5,9 +5,10 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
-// Importations des icônes Lucide React
+// Importations des icônes Lucide React (avec les nouvelles icônes)
 import {
-    PlusCircle, Package, CheckCircle, Bell, History, User, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, Archive, Undo2, List, XCircle, FileWarning
+    PlusCircle, Package, CheckCircle, Bell, History, User, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, Archive, Undo2, List, XCircle, FileWarning,
+    MessageSquareText, PhoneCall, BellRing // NOUVELLES ICÔNES AJOUTÉES
 } from 'lucide-react';
 
 // =================================================================
@@ -35,14 +36,12 @@ const SPECIAL_USER_NAMES = {
     "marvyn.ammiche@orange-store.com": "Marvyn"
 };
 
-
 const ITEM_STATUS = {
     ORDERED: 'Commandé',
     RECEIVED: 'Reçu',
     CANCELLED: 'Annulé',
 };
 
-// MODIFICATION : Nouveaux noms des statuts
 const ORDER_STATUS = {
     ORDERED: 'Commandé',
     PARTIALLY_RECEIVED: 'Partiellement Reçu',
@@ -53,7 +52,6 @@ const ORDER_STATUS = {
     COMPLETE_CANCELLED: 'Annulée'
 };
 
-// MODIFICATION : Mise à jour des libellés dans la configuration d'affichage
 const ORDER_STATUSES_CONFIG = {
     [ORDER_STATUS.ORDERED]: { label: 'Commandé', colorClass: 'bg-yellow-500', icon: Package },
     [ORDER_STATUS.PARTIALLY_RECEIVED]: { label: 'Partiellement Reçu', colorClass: 'bg-blue-400', icon: FileWarning },
@@ -149,28 +147,8 @@ const formatOrderDate = (isoString) => {
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
 
-const TailwindColorSafelist = () => (
-    <div style={{ display: 'none' }}>
-        <span className="bg-yellow-500"></span><span className="text-yellow-500"></span><span className="text-yellow-400"></span>
-        <span className="bg-green-500"></span><span className="text-green-500"></span><span className="text-green-400"></span><span className="bg-green-600"></span><span className="hover:bg-green-700"></span>
-        <span className="bg-blue-400"></span><span className="bg-blue-500"></span><span className="bg-blue-600"></span><span className="hover:bg-blue-700"></span><span className="text-blue-500"></span><span className="text-blue-400"></span>
-        <span className="bg-purple-600"></span><span className="hover:bg-purple-700"></span><span className="text-purple-600"></span><span className="text-purple-400"></span>
-        <span className="bg-gray-600"></span><span className="hover:bg-gray-700"></span><span className="text-gray-600"></span><span className="text-gray-500"></span><span className="text-gray-400"></span>
-        <span className="bg-red-700"></span><span className="bg-red-600"></span><span className="hover:bg-red-700"></span><span className="hover:bg-red-800"></span><span className="text-red-700"></span><span className="text-red-400"></span>
-        <span className="bg-yellow-600"></span><span className="hover:bg-yellow-700"></span>
-    </div>
-);
-
-const HistoryActionText = ({ text }) => {
-    if (!text) return null;
-    const parts = text.split(/\*\*(.*?)\*\*/g);
-    return (
-        <p className="text-white font-medium">
-            {parts.map((part, i) => i % 2 === 1 ? <strong key={i}>{part}</strong> : part)}
-        </p>
-    );
-};
-
+const TailwindColorSafelist = () => ( <div style={{ display: 'none' }}><span className="bg-yellow-500"></span><span className="text-yellow-500"></span><span className="text-yellow-400"></span><span className="bg-green-500"></span><span className="text-green-500"></span><span className="text-green-400"></span><span className="bg-green-600"></span><span className="hover:bg-green-700"></span><span className="bg-blue-400"></span><span className="bg-blue-500"></span><span className="bg-blue-600"></span><span className="hover:bg-blue-700"></span><span className="text-blue-500"></span><span className="text-blue-400"></span><span className="bg-purple-600"></span><span className="hover:bg-purple-700"></span><span className="text-purple-600"></span><span className="text-purple-400"></span><span className="bg-gray-600"></span><span className="hover:bg-gray-700"></span><span className="text-gray-600"></span><span className="text-gray-500"></span><span className="text-gray-400"></span><span className="bg-red-700"></span><span className="bg-red-600"></span><span className="hover:bg-red-700"></span><span className="hover:bg-red-800"></span><span className="text-red-700"></span><span className="text-red-400"></span><span className="bg-yellow-600"></span><span className="hover:bg-yellow-700"></span></div> );
+const HistoryActionText = ({ text }) => { if (!text) return null; const parts = text.split(/\*\*(.*?)\*\*/g); return ( <p className="text-white font-medium">{parts.map((part, i) => i % 2 === 1 ? <strong key={i}>{part}</strong> : part)}</p> ); };
 const AnimationStyles = () => ( <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .5s ease-in-out}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}.tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding:8px 12px;background-color:rgba(45,55,72,.9);color:#fff;border-radius:8px;font-size:14px;white-space:pre-wrap;z-index:50;opacity:0;visibility:hidden;transition:opacity .2s ease-in-out,visibility .2s ease-in-out;box-shadow:0 4px 10px rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1)}.group:hover .tooltip{opacity:1;visibility:visible}.custom-scrollbar::-webkit-scrollbar{width:8px}.custom-scrollbar::-webkit-scrollbar-track{background:#374151;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#60A5FA;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb:hover{background:#3B82F6}`}</style> );
 const Tooltip = ({ children, text }) => ( <div className="relative inline-block group">{children}{text && (<div className="tooltip">{text}</div>)}</div> );
 const Toast = ({ message, type, onClose }) => { const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500'; const Icon = type === 'success' ? Check : AlertTriangle; return ( <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}><Icon size={24} /><span>{message}</span><button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors"><X size={20} /></button></div> ); };
@@ -178,26 +156,168 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => { const [clien
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-blue-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const CancellationModal = ({ onConfirm, onCancel, title, message }) => { const [note, setNote] = useState(''); const handleConfirmClick = () => { onConfirm(note); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-red-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="cancellation-note" className="block text-sm font-medium text-gray-300 mb-2">Raison de l'annulation (optionnel)</label><textarea id="cancellation-note" rows="3" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Rupture de stock fournisseur, demande du client..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Retour</button><button onClick={handleConfirmClick} className="bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Confirmer l'annulation</button></div></div></div> ); };
 const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => { const [reason, setReason] = useState(''); const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison du retour en arrière (obligatoire)</label><textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation, le client n'a pas encore été prévenu..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button><button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button></div></div></div> ); };
-const OrderHistoryModal = ({ order, onClose }) => { return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">Historique de la commande</h2><div className="space-y-4">{order.history && order.history.length > 0 ? (order.history.slice().reverse().map((event, index) => { const Icon = getIconForHistoryAction(event.action); return ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4"><Icon size={20} className={`${getIconColorClass(event.action)} flex-shrink-0 mt-1`} /><div className="flex-1"><HistoryActionText text={event.action} /><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>{event.note && <p className="text-gray-400 text-xs italic mt-2 border-l-2 border-gray-600 pl-2">Note: {event.note}</p>}</div></div> ); })) : ( <p className="text-gray-400 text-center">Aucun historique disponible.</p> )}</div></div></div> ); };
 const LoginForm = ({ onLogin, error }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center mb-6"><LogIn className="mx-auto h-12 w-12 text-blue-400" /><h2 className="mt-4 text-2xl font-bold text-white">Connexion</h2><p className="text-gray-400 mt-1">Accès réservé aux conseillers.</p></div><form onSubmit={handleSubmit} className="space-y-6"><div><label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Adresse Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && (<p className="text-red-400 text-sm text-center">{error}</p>)}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div> ); };
 
 // =================================================================
-// COMPOSANT OrderCard (mis à jour pour afficher plus d'infos et appeler les nouvelles fonctions)
+// NOUVEAUX COMPOSANTS (Notification et Historique mis à jour)
 // =================================================================
-const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOrderStatusUpdate, isAdmin, onShowHistory, onEdit, onRequestDelete, onInitiateRollback }) => {
+
+const NotificationModal = ({ onConfirm, onCancel }) => {
+    const [method, setMethod] = useState('email');
+    const [voicemail, setVoicemail] = useState(false);
+
+    const handleConfirm = () => {
+        onConfirm({ method, voicemail });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
+                <div className="text-center">
+                    <Bell className="mx-auto h-12 w-12 text-blue-400" />
+                    <h3 className="mt-4 text-xl font-medium text-white">Comment le client a-t-il été prévenu ?</h3>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                    <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'email' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`}
+                        onClick={() => setMethod('email')}
+                    >
+                        <div className="flex items-center gap-4">
+                            <Mail size={24} className={method === 'email' ? 'text-blue-400' : 'text-gray-400'} />
+                            <div>
+                                <p className="font-semibold text-white">Par Email (Automatique)</p>
+                                <p className="text-sm text-gray-400">Un email sera envoyé au client.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'sms' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`}
+                        onClick={() => setMethod('sms')}
+                    >
+                        <div className="flex items-center gap-4">
+                            <MessageSquareText size={24} className={method === 'sms' ? 'text-blue-400' : 'text-gray-400'} />
+                            <div>
+                                <p className="font-semibold text-white">Par SMS</p>
+                                <p className="text-sm text-gray-400">Confirmer manuellement l'envoi d'un SMS.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'phone' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`}
+                        onClick={() => setMethod('phone')}
+                    >
+                         <div className="flex items-center gap-4">
+                            <PhoneCall size={24} className={method === 'phone' ? 'text-blue-400' : 'text-gray-400'} />
+                             <div>
+                                <p className="font-semibold text-white">Par Appel Téléphonique</p>
+                                <p className="text-sm text-gray-400">Confirmer manuellement un appel.</p>
+                            </div>
+                        </div>
+                        {method === 'phone' && (
+                            <div className="mt-4 pl-10 flex items-center">
+                                <input id="voicemail-checkbox" type="checkbox" checked={voicemail} onChange={(e) => setVoicemail(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <label htmlFor="voicemail-checkbox" className="ml-2 block text-sm text-gray-300">
+                                    Un message vocal a été déposé.
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+                    <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button>
+                    <button onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Confirmer</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const OrderHistoryModal = ({ order, onClose }) => {
+    const getNotificationStats = useCallback((history) => {
+        if (!history) return { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 };
+        
+        return history.reduce((acc, event) => {
+            if (event.action.includes('prévenu')) {
+                acc.total++;
+                if (event.action.includes('Email')) acc.email++;
+                if (event.action.includes('SMS')) acc.sms++;
+                if (event.action.includes('Appel')) {
+                    acc.phone++;
+                    if (event.note && event.note.includes('Message vocal')) {
+                        acc.voicemail++;
+                    }
+                }
+            }
+            return acc;
+        }, { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 });
+    }, []);
+
+    const notificationStats = useMemo(() => getNotificationStats(order.history), [order.history, getNotificationStats]);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
+                <button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
+                <h2 className="text-2xl font-bold text-white mb-2 text-center">Historique de la commande</h2>
+                
+                {notificationStats.total > 0 && (
+                    <div className="bg-gray-900/50 p-4 rounded-lg mb-6 border border-gray-700">
+                        <h4 className="font-semibold text-white mb-3 text-center">Résumé des notifications ({notificationStats.total})</h4>
+                        <div className="flex justify-center flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300">
+                            <span className="flex items-center gap-1.5"><Mail size={16} /> Email: <strong className="text-white">{notificationStats.email}</strong></span>
+                            <span className="flex items-center gap-1.5"><MessageSquareText size={16} /> SMS: <strong className="text-white">{notificationStats.sms}</strong></span>
+                            <span className="flex items-center gap-1.5"><PhoneCall size={16} /> Appels: <strong className="text-white">{notificationStats.phone}</strong></span>
+                            {notificationStats.voicemail > 0 && <span className="flex items-center gap-1.5 text-xs text-gray-400">(dont {notificationStats.voicemail} msg. vocaux)</span>}
+                        </div>
+                    </div>
+                )}
+
+                <div className="space-y-4">
+                    {order.history && order.history.length > 0 ? (
+                        order.history.slice().reverse().map((event, index) => {
+                            const Icon = getIconForHistoryAction(event.action);
+                            return (
+                                <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4">
+                                    <Icon size={20} className={`${getIconColorClass(event.action)} flex-shrink-0 mt-1`} />
+                                    <div className="flex-1">
+                                        <HistoryActionText text={event.action} />
+                                        <p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {new Date(event.timestamp).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                        {event.note && <p className="text-gray-400 text-xs italic mt-2 border-l-2 border-gray-600 pl-2">Note: {event.note}</p>}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <p className="text-gray-400 text-center">Aucun historique disponible.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+// =================================================================
+// COMPOSANT OrderCard (mis à jour pour les nouvelles actions)
+// =================================================================
+const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOrderStatusUpdate, isAdmin, onShowHistory, onEdit, onRequestDelete, onInitiateRollback, onNotifyClient }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     const displayStatus = getEffectiveOrderStatus(order);
     const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500', icon: Info };
 
     const canNotify = displayStatus === ORDER_STATUS.READY_FOR_PICKUP;
+    const isNotified = displayStatus === ORDER_STATUS.NOTIFIED;
     const canBePickedUp = displayStatus === ORDER_STATUS.NOTIFIED;
     const canBeArchived = displayStatus === ORDER_STATUS.PICKED_UP;
 
     const statusHistory = (order.history || []).filter(e => e.action.includes('**'));
     const canRollback = statusHistory.length >= 2 && ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
     
-    // Les commandes non archivées/annulées peuvent être modifiées par n'importe qui
     const canEdit = ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
 
     return (
@@ -205,12 +325,10 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
             <div className="flex justify-between items-start p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={() => setIsOpen(!isOpen)}>
                 <div className="flex-1 pr-4">
                     <h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3>
-                    
                     <div className="mt-2 space-y-1 text-sm text-gray-300">
                         {order.clientPhone && <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400"/><span>{formatPhoneNumber(order.clientPhone)}</span></div>}
                         {order.clientEmail && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400"/><span>{order.clientEmail}</span></div>}
                     </div>
-
                     <div className="mt-3 pt-3 border-t border-gray-700/60 flex items-center flex-wrap gap-x-2 text-xs text-gray-400">
                         <User size={14} />
                         <span>Par</span>
@@ -227,8 +345,6 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
             
             <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
                 <div className="p-4 sm:p-6 border-t border-gray-700">
-                    
-                    {/* Section ticket de caisse et notes déplacée ici */}
                     {(order.receiptNumber || order.orderNotes) && (
                         <div className="mb-4 pb-4 border-b border-gray-700/60 space-y-3">
                             {order.receiptNumber && (
@@ -274,16 +390,20 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                         <h4 className="text-md font-semibold text-gray-300 mb-2">Actions sur la commande</h4>
                          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
                             {canRollback && <button onClick={() => onInitiateRollback(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Revenir en arrière</button>}
-                            {canNotify && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.NOTIFIED)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir le client</button>}
+                            
+                            {/* BOUTON POUR LA PREMIÈRE NOTIFICATION */}
+                            {canNotify && <button onClick={() => onNotifyClient(order)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir le client</button>}
+                            
+                            {/* BOUTON POUR LES NOTIFICATIONS SUIVANTES */}
+                            {isNotified && <button onClick={() => onNotifyClient(order)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><BellRing size={18} /> Notifier à nouveau</button>}
+                            
                             {canBePickedUp && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Marquer comme Retirée</button>}
                             {canBeArchived && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}
                             
                             <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
                             
-                            {/* Le bouton Modifier est visible pour tous si la commande est modifiable */}
                             {canEdit && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
                             
-                            {/* Le bouton Supprimer reste réservé aux admins */}
                             {isAdmin && <button onClick={() => onRequestDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}
                         </div>
                     </div>
@@ -324,6 +444,8 @@ export default function App() {
     const [showRollbackModal, setShowRollbackModal] = useState(false);
     const [orderToRollback, setOrderToRollback] = useState(null);
     const [confirmation, setConfirmation] = useState({ isOpen: false, message: '', onConfirm: () => {}, confirmColor: 'bg-blue-600' });
+    const [showNotificationModal, setShowNotificationModal] = useState(false);
+    const [orderToNotify, setOrderToNotify] = useState(null);
 
     // États des filtres et de l'affichage
     const [searchTerm, setSearchTerm] = useState('');
@@ -414,7 +536,6 @@ export default function App() {
                     const existing = existingItems.find(e => e.itemName === newItem.itemName);
                     return existing ? { ...existing, quantity: newItem.quantity } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED };
                 });
-
                 await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande **modifiée**", by: userInfo }] });
                 showToast("Commande modifiée !", 'success');
             } else {
@@ -466,7 +587,6 @@ export default function App() {
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
         let actionText = `Statut changé pour '**${newStatus}**'`;
-        if (newStatus === ORDER_STATUS.NOTIFIED) actionText = "Client **prévenu** de la disponibilité";
         if (newStatus === ORDER_STATUS.PICKED_UP) actionText = "Commande **retirée** par le client";
         if (newStatus === ORDER_STATUS.ARCHIVED) actionText = "Commande **archivée**";
         const historyEvent = { timestamp: now, action: actionText, by: userInfo };
@@ -476,6 +596,42 @@ export default function App() {
             showToast(`Commande mise à jour !`, 'success');
         }
     }, [db, currentUser, orders, showToast, getCurrentUserInfo]);
+
+    const handleConfirmNotification = useCallback(async ({ method, voicemail }) => {
+        if (!db || !currentUser || !orderToNotify) return;
+
+        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToNotify.id);
+        const userInfo = getCurrentUserInfo();
+        const now = new Date().toISOString();
+
+        let actionText = '';
+        const note = voicemail ? "Message vocal déposé." : null;
+
+        switch (method) {
+            case 'sms': actionText = "Client **prévenu** par **SMS**"; break;
+            case 'phone': actionText = "Client **prévenu** par **Appel**"; break;
+            case 'email': default: actionText = "Client **prévenu** par **Email**"; break;
+        }
+        
+        const historyEvent = { timestamp: now, action: actionText, by: userInfo, ...(note && { note }) };
+        const isFirstNotification = orderToNotify.currentStatus !== ORDER_STATUS.NOTIFIED;
+        const updatePayload = { history: [...(orderToNotify.history || []), historyEvent] };
+
+        if (isFirstNotification) {
+            updatePayload.currentStatus = ORDER_STATUS.NOTIFIED;
+        }
+
+        try {
+            await updateDoc(orderRef, updatePayload);
+            showToast(`Notification par '${method.toUpperCase()}' enregistrée !`, 'success');
+        } catch (error) {
+            console.error("Error updating notification status:", error);
+            showToast("Échec de la mise à jour.", 'error');
+        } finally {
+            setShowNotificationModal(false);
+            setOrderToNotify(null);
+        }
+    }, [db, currentUser, orderToNotify, showToast, getCurrentUserInfo]);
 
     const handleConfirmDelete = useCallback(async (orderId) => { 
         if (!db || !isAdmin || !orderId) { showToast("Action non autorisée.", 'error'); return; } 
@@ -514,11 +670,14 @@ export default function App() {
     const handleRequestItemStatusUpdate = (orderId, itemId, newStatus, itemName) => setConfirmation({ isOpen: true, message: `Confirmez-vous vouloir marquer l'article '${itemName}' comme Reçu ?`, onConfirm: () => {handleUpdateItemStatus(orderId, itemId, newStatus, itemName); closeConfirmation(); }, confirmColor: 'bg-green-600' });
     const handleRequestOrderStatusUpdate = (order, newStatus) => {
         let message = `Voulez-vous vraiment changer le statut à '${newStatus}' ?`, color = 'bg-blue-600';
-        if (newStatus === ORDER_STATUS.NOTIFIED) { message = "Confirmez-vous avoir prévenu le client ?"; color = 'bg-blue-600'; }
         if (newStatus === ORDER_STATUS.PICKED_UP) { message = `La commande a-t-elle bien été marquée comme ${ORDER_STATUS.PICKED_UP} ?`; color = 'bg-purple-600'; }
         if (newStatus === ORDER_STATUS.ARCHIVED) { message = "Archiver cette commande ? Elle n'apparaîtra plus dans la liste active."; color = 'bg-gray-600'; }
         setConfirmation({ isOpen: true, message, onConfirm: () => {handleUpdateOrderStatus(order.id, newStatus); closeConfirmation(); }, confirmColor: color });
     };
+    const handleRequestNotification = useCallback((order) => {
+        setOrderToNotify(order);
+        setShowNotificationModal(true);
+    }, []);
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
     const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
     const handleCancelItem = (orderId, itemId, itemName) => { setItemToCancel({ orderId, itemId, itemName }); setShowItemCancelModal(true); };
@@ -540,6 +699,7 @@ export default function App() {
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
             {showRollbackModal && orderToRollback && ( <RollbackStatusModal title={`Annuler le dernier changement de statut ?`} message={`La commande reviendra à son état précédent. Veuillez justifier cette action.`} onConfirm={handleConfirmRollback} onCancel={() => { setShowRollbackModal(false); setOrderToRollback(null); }} /> )}
+            {showNotificationModal && orderToNotify && ( <NotificationModal onConfirm={handleConfirmNotification} onCancel={() => { setShowNotificationModal(false); setOrderToNotify(null); }} /> )}
             
             <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
@@ -593,6 +753,7 @@ export default function App() {
                                 order={order} 
                                 onRequestItemStatusUpdate={handleRequestItemStatusUpdate}
                                 onCancelItem={handleCancelItem}
+                                onNotifyClient={handleRequestNotification}
                                 onRequestOrderStatusUpdate={handleRequestOrderStatusUpdate}
                                 isAdmin={isAdmin} 
                                 onShowHistory={handleShowOrderHistory}
