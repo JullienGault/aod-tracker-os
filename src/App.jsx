@@ -45,13 +45,13 @@ const ORDER_STATUS = {
 };
 
 const ORDER_STATUSES_CONFIG = {
-    [ORDER_STATUS.ORDERED]:               { label: 'Commandé',            colorClass: 'bg-yellow-500', textColor: 'text-yellow-400' },
-    [ORDER_STATUS.PARTIALLY_RECEIVED]: { label: 'Partiellement Reçu',    colorClass: 'bg-blue-400',   textColor: 'text-blue-400' },
-    [ORDER_STATUS.READY_FOR_PICKUP]:   { label: 'Prêt pour retrait',   colorClass: 'bg-green-500',  textColor: 'text-green-400' },
-    [ORDER_STATUS.NOTIFIED]:               { label: 'Prévenu',             colorClass: 'bg-blue-500',   textColor: 'text-blue-500' },
-    [ORDER_STATUS.PICKED_UP]:              { label: 'Retiré',              colorClass: 'bg-purple-600', textColor: 'text-purple-400' },
-    [ORDER_STATUS.ARCHIVED]:               { label: 'Archivé',             colorClass: 'bg-gray-600',   textColor: 'text-gray-400' },
-    [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Commande Annulée',    colorClass: 'bg-red-700',    textColor: 'text-red-400' }
+    [ORDER_STATUS.ORDERED]:              { label: 'Commandé',           colorClass: 'bg-yellow-500', textColor: 'text-yellow-400' },
+    [ORDER_STATUS.PARTIALLY_RECEIVED]: { label: 'Partiellement Reçu',   colorClass: 'bg-blue-400',   textColor: 'text-blue-400' },
+    [ORDER_STATUS.READY_FOR_PICKUP]:   { label: 'Prêt pour retrait',  colorClass: 'bg-green-500',  textColor: 'text-green-400' },
+    [ORDER_STATUS.NOTIFIED]:               { label: 'Prévenu',            colorClass: 'bg-blue-500',   textColor: 'text-blue-500' },
+    [ORDER_STATUS.PICKED_UP]:              { label: 'Retiré',             colorClass: 'bg-purple-600', textColor: 'text-purple-400' },
+    [ORDER_STATUS.ARCHIVED]:               { label: 'Archivé',            colorClass: 'bg-gray-600',   textColor: 'text-gray-400' },
+    [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Commande Annulée',   colorClass: 'bg-red-700',    textColor: 'text-red-400' }
 };
 
 
@@ -120,7 +120,7 @@ const OrderHistoryModal = ({ order, onClose }) => { return ( <div className="fix
 const LoginForm = ({ onLogin, error }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center mb-6"><LogIn className="mx-auto h-12 w-12 text-blue-400" /><h2 className="mt-4 text-2xl font-bold text-white">Connexion</h2><p className="text-gray-400 mt-1">Accès réservé aux conseillers.</p></div><form onSubmit={handleSubmit} className="space-y-6"><div><label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Adresse Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && (<p className="text-red-400 text-sm text-center">{error}</p>)}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div> ); };
 
 // =================================================================
-// COMPOSANT OrderCard (MODIFIÉ)
+// COMPOSANT OrderCard (MODIFIÉ POUR PASSER L'OBJET `order` COMPLET)
 // =================================================================
 const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatus, onCancelOrder, onRevertStatus, isAdmin, onShowHistory, onEdit, onDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -131,7 +131,7 @@ const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatu
     const canBeArchived = displayStatus === ORDER_STATUS.PICKED_UP;
     const canBeCancelled = ![ORDER_STATUS.COMPLETE_CANCELLED, ORDER_STATUS.ARCHIVED, ORDER_STATUS.PICKED_UP].includes(displayStatus);
     const statusChangeHistory = order.history?.filter(h => h.action.includes('passée au statut')) || [];
-    const canRevert = statusChangeHistory.length > 1 && displayStatus !== ORDER_STATUS.ORDERED;
+    const canRevert = statusChangeHistory.length > 0 && displayStatus !== ORDER_STATUS.ORDERED;
 
     return (
         <div className="bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:shadow-2xl hover:ring-2 hover:ring-blue-500/50">
@@ -142,7 +142,6 @@ const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatu
             <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
                 <div className="p-4 sm:p-6 border-t border-gray-700">
                     
-                    {/* MODIFIÉ: APERÇU DE L'HISTORIQUE AVEC 5 ACTIVITÉS ET TOOLTIP */}
                     {order.history && order.history.length > 1 && (
                         <div className="mb-4">
                             <Tooltip text="Cliquez sur 'Historique' pour voir l'intégralité des événements.">
@@ -166,19 +165,19 @@ const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatu
                                         </div>
                                     )
                                 })}
-                             </div>
+                               </div>
                         </div>
                     )}
 
                     <h4 className="text-md font-semibold text-gray-300 pt-4 border-t border-gray-700/50 mb-3">Gestion des articles :</h4>
-                    <div className="space-y-3">{order.items?.map(item => ( <div key={item.itemId} className="bg-gray-700/50 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2"><div className="flex-1"><p className="text-white font-medium">{item.itemName} (Qté: {item.quantity})</p><p className={`text-xs font-bold ${item.status === ITEM_STATUS.RECEIVED ? 'text-green-400' : item.status === ITEM_STATUS.CANCELLED ? 'text-red-400' : 'text-yellow-400'}`}><span>Statut : {item.status || 'N/A'}</span></p></div><div className="flex gap-2 self-start sm:self-center">{item.status === ITEM_STATUS.ORDERED && ( <> <button onClick={() => onUpdateItemStatus(order.id, item.itemId, ITEM_STATUS.RECEIVED)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Marquer Reçu</button><button onClick={() => onCancelItem(order.id, item.itemId, item.itemName)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Annuler</button> </> )}</div></div> ))}</div>
+                    <div className="space-y-3">{order.items?.map(item => ( <div key={item.itemId} className="bg-gray-700/50 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2"><div className="flex-1"><p className="text-white font-medium">{item.itemName} (Qté: {item.quantity})</p><p className={`text-xs font-bold ${item.status === ITEM_STATUS.RECEIVED ? 'text-green-400' : item.status === ITEM_STATUS.CANCELLED ? 'text-red-400' : 'text-yellow-400'}`}><span>Statut : {item.status || 'N/A'}</span></p></div><div className="flex gap-2 self-start sm:self-center">{item.status === ITEM_STATUS.ORDERED && ( <> <button onClick={() => onUpdateItemStatus(order, item.itemId, ITEM_STATUS.RECEIVED)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Marquer Reçu</button><button onClick={() => onCancelItem(order, item.itemId, item.itemName)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Annuler</button> </> )}</div></div> ))}</div>
                     
                     <div className="mt-4 pt-4 border-t border-gray-700">
                         <h4 className="text-md font-semibold text-gray-300 mb-2">Actions sur la commande</h4>
                         <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                            {canNotify && <button onClick={() => onUpdateOrderStatus(order.id, ORDER_STATUS.NOTIFIED)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir</button>}
-                            {canBePickedUp && <button onClick={() => onUpdateOrderStatus(order.id, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Retiré</button>}
-                            {canBeArchived && <button onClick={() => onUpdateOrderStatus(order.id, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}
+                            {canNotify && <button onClick={() => onUpdateOrderStatus(order, ORDER_STATUS.NOTIFIED)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir</button>}
+                            {canBePickedUp && <button onClick={() => onUpdateOrderStatus(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Retiré</button>}
+                            {canBeArchived && <button onClick={() => onUpdateOrderStatus(order, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}
                             {canRevert && <button onClick={() => onRevertStatus(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Retour</button>}
                         </div>
                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-600">
@@ -194,11 +193,12 @@ const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatu
     );
 };
 
+
 // =================================================================
 // COMPOSANT PRINCIPAL : App
 // =================================================================
 export default function App() {
-    // ... (Le reste du composant App reste identique et n'a pas besoin d'être modifié)
+    // --- STATES ---
     const [orders, setOrders] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -210,188 +210,385 @@ export default function App() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [authReady, setAuthReady] = useState(false);
     const [loginError, setLoginError] = useState(null);
+    
+    // States for modals and forms visibility
     const [showLogin, setShowLogin] = useState(true);
     const [showOrderForm, setShowOrderForm] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null);
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [orderToDeleteId, setOrderToDeleteId] = useState(null);
-    const [itemToCancel, setItemToCancel] = useState(null);
+    const [itemToCancel, setItemToCancel] = useState(null); // Will now be an object: { order, itemId, itemName }
     const [showItemCancelModal, setShowItemCancelModal] = useState(false);
+    const [orderToCancel, setOrderToCancel] = useState(null); // Will now be an order object
+    const [showOrderCancelModal, setShowOrderCancelModal] = useState(false);
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
+    
+    // States for filtering and searching
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
-    const [viewMode, setViewMode] = useState('active');
+    const [viewMode, setViewMode] = useState('active'); // 'active' or 'archived'
+    
+    // State for toast notifications
     const [toast, setToast] = useState(null);
-    const [orderToCancel, setOrderToCancel] = useState(null);
-    const [showOrderCancelModal, setShowOrderCancelModal] = useState(false);
+
+    // --- EFFECTS ---
 
     useEffect(() => { document.title = "AOD Tracker OS"; }, []);
 
+    // Firebase Initialization and Auth Listener
     useEffect(() => {
         try {
             const app = initializeApp(firebaseConfig);
             const authInstance = getAuth(app); setAuth(authInstance); 
             const dbInstance = getFirestore(app); setDb(dbInstance);
             const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-                if (user) { setCurrentUser(user); setIsAdmin(user.email === ADMIN_EMAIL); setShowLogin(false); } 
-                else { setCurrentUser(null); setIsAdmin(false); setShowLogin(true); }
+                if (user) { 
+                    setCurrentUser(user); 
+                    setIsAdmin(user.email === ADMIN_EMAIL); 
+                    setShowLogin(false); 
+                } else { 
+                    setCurrentUser(null); 
+                    setIsAdmin(false); 
+                    setShowLogin(true); 
+                }
                 setAuthReady(true);
             });
             return () => unsubscribe();
-        } catch (error) { console.error("Firebase Init Error:", error); setDbError("Impossible d'initialiser Firebase."); setAuthReady(true); }
+        } catch (error) { 
+            console.error("Firebase Init Error:", error); 
+            setDbError("Impossible d'initialiser Firebase."); 
+            setAuthReady(true); 
+        }
     }, []);
 
-    const showToast = useCallback((message, type = 'success') => { setToast({ message, type }); setTimeout(() => setToast(null), 3000); }, []);
+    const showToast = useCallback((message, type = 'success') => { 
+        setToast({ message, type }); 
+        setTimeout(() => setToast(null), 3000); 
+    }, []);
 
+    // Firestore Listener for Orders
     useEffect(() => {
-        if (!authReady || !db || !currentUser) { if(authReady) setIsLoading(false); return; }
+        if (!authReady || !db || !currentUser) { 
+            if(authReady) setIsLoading(false); 
+            return; 
+        }
         setIsLoading(true);
         const q = query(collection(db, `artifacts/${APP_ID}/public/data/orders`), orderBy("orderDate", "desc"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setOrders(fetchedOrders);
+            
+            // Extract unique users from all orders and their history for the filter dropdown
             const usersFromOrders = fetchedOrders.reduce((acc, order) => {
                 if (order.orderedBy?.email) { acc[order.orderedBy.email] = { email: order.orderedBy.email, name: getUserDisplayName(order.orderedBy.email) }; }
                 order.history?.forEach(h => { if (h.by?.email) { acc[h.by.email] = { email: h.by.email, name: getUserDisplayName(h.by.email) }; } });
                 return acc;
             }, {});
-            setAllUsers(Object.values(usersFromOrders)); setIsLoading(false); setDbError(null);
-        }, (err) => { console.error("Error fetching orders:", err); setDbError("Impossible de charger les commandes."); setIsLoading(false); });
+            setAllUsers(Object.values(usersFromOrders)); 
+            
+            setIsLoading(false); 
+            setDbError(null);
+        }, (err) => { 
+            console.error("Error fetching orders:", err); 
+            setDbError("Impossible de charger les commandes."); 
+            setIsLoading(false); 
+        });
         return () => unsubscribe();
     }, [authReady, db, currentUser]);
 
+    // --- MEMOIZED DATA ---
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
         const finalStatuses = [ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED];
-        if (viewMode === 'active') { currentOrders = currentOrders.filter(order => !finalStatuses.includes(getEffectiveOrderStatus(order))); } 
-        else { currentOrders = currentOrders.filter(order => finalStatuses.includes(getEffectiveOrderStatus(order))); }
-        if (selectedStatusFilter !== 'All' && viewMode === 'active') { currentOrders = currentOrders.filter(order => getEffectiveOrderStatus(order) === selectedStatusFilter); }
-        if (selectedAdvisorFilter !== 'All') { currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); }
-        if (searchTerm.trim()) { const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); currentOrders = currentOrders.filter(order => ((order.clientFirstName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientLastName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientEmail || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientPhone || '').toLowerCase().includes(lowerCaseSearchTerm)) || (order.items?.some(item => (item.itemName || '').toLowerCase().includes(lowerCaseSearchTerm))) || ((order.receiptNumber || '').toLowerCase().includes(lowerCaseSearchTerm)) ); }
+        
+        if (viewMode === 'active') { 
+            currentOrders = currentOrders.filter(order => !finalStatuses.includes(getEffectiveOrderStatus(order))); 
+        } else { 
+            currentOrders = currentOrders.filter(order => finalStatuses.includes(getEffectiveOrderStatus(order))); 
+        }
+        
+        if (selectedStatusFilter !== 'All' && viewMode === 'active') { 
+            currentOrders = currentOrders.filter(order => getEffectiveOrderStatus(order) === selectedStatusFilter); 
+        }
+        
+        if (selectedAdvisorFilter !== 'All') { 
+            currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); 
+        }
+        
+        if (searchTerm.trim()) { 
+            const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); 
+            currentOrders = currentOrders.filter(order => 
+                ((order.clientFirstName || '').toLowerCase().includes(lowerCaseSearchTerm)) || 
+                ((order.clientLastName || '').toLowerCase().includes(lowerCaseSearchTerm)) || 
+                ((order.clientEmail || '').toLowerCase().includes(lowerCaseSearchTerm)) || 
+                ((order.clientPhone || '').toLowerCase().includes(lowerCaseSearchTerm)) || 
+                (order.items?.some(item => (item.itemName || '').toLowerCase().includes(lowerCaseSearchTerm))) || 
+                ((order.receiptNumber || '').toLowerCase().includes(lowerCaseSearchTerm)) 
+            ); 
+        }
         return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
-    const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) return; try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
-    const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
-    const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'counselor' }; }, [currentUser]);
+    // --- CALLBACK HANDLERS ---
+    
+    const getCurrentUserInfo = useCallback(() => {
+        if (!currentUser) return null;
+        return { 
+            uid: currentUser.uid, 
+            email: currentUser.email, 
+            name: getUserDisplayName(currentUser.email), 
+            role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'counselor' 
+        };
+    }, [currentUser]);
+
+    const handleLogin = useCallback(async (email, password) => { 
+        setLoginError(null); 
+        if (!auth) return; 
+        try { 
+            await signInWithEmailAndPassword(auth, email, password); 
+            setShowLogin(false); 
+        } catch (error) { 
+            setLoginError("Email ou mot de passe incorrect."); 
+            showToast("Échec de la connexion.", 'error'); 
+        } 
+    }, [auth, showToast]);
+    
+    const handleLogout = useCallback(() => { 
+        if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); 
+    }, [auth, showToast]);
     
     const handleSaveOrder = useCallback(async (orderData) => {
-        if (!db || !currentUser) { showToast("Vous devez être connecté.", 'error'); return; }
+        if (!db || !currentUser) { 
+            showToast("Vous devez être connecté.", 'error'); 
+            return; 
+        }
         setIsSaving(true);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
         try {
             if (editingOrder) {
+                // UPDATE existing order
                 const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id);
                 const existingItems = editingOrder.items || [];
                 const updatedItems = orderData.items.map((newItem) => {
                     const existing = existingItems.find(e => e.itemName === newItem.itemName);
-                    return existing ? { ...existing, quantity: newItem.quantity } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED };
+                    return existing 
+                        ? { ...existing, quantity: newItem.quantity } 
+                        : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED };
                 });
-                await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] });
+                await updateDoc(orderRef, { 
+                    ...orderData, 
+                    items: updatedItems, 
+                    history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] 
+                });
                 showToast("Commande modifiée !", 'success');
             } else {
-                const itemsWithStatus = orderData.items.map(item => ({ ...item, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED }));
-                const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande créée`, by: userInfo }]};
+                // CREATE new order
+                const itemsWithStatus = orderData.items.map(item => ({ 
+                    ...item, 
+                    itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, 
+                    status: ITEM_STATUS.ORDERED 
+                }));
+                const newOrder = { 
+                    ...orderData, 
+                    items: itemsWithStatus, 
+                    orderedBy: userInfo, 
+                    orderDate: now, 
+                    currentStatus: ORDER_STATUS.ORDERED, 
+                    history: [{ timestamp: now, action: `Commande créée`, by: userInfo }]
+                };
                 await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder);
                 showToast("Commande ajoutée !", 'success');
             }
-            setShowOrderForm(false); setEditingOrder(null);
-        } catch (e) { console.error(e); showToast("Échec de l'enregistrement.", 'error'); } 
-        finally { setIsSaving(false); }
+            setShowOrderForm(false); 
+            setEditingOrder(null);
+        } catch (e) { 
+            console.error(e); 
+            showToast("Échec de l'enregistrement.", 'error'); 
+        } finally { 
+            setIsSaving(false); 
+        }
     }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
     
-    const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus) => {
-        if (!db || !currentUser) return;
-        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
-        const orderToUpdate = orders.find(o => o.id === orderId);
-        if (!orderToUpdate) return;
+    const handleUpdateItemStatus = useCallback(async (orderToUpdate, itemId, newStatus) => {
+        if (!db || !currentUser || !orderToUpdate) return;
+        
+        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToUpdate.id);
         const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: newStatus } : item);
-        const updatedOrder = { ...orderToUpdate, items: newItems };
-        const newGlobalStatus = getDerivedOrderStatus(updatedOrder);
+        const updatedOrderForStatus = { ...orderToUpdate, items: newItems };
+        const newGlobalStatus = getDerivedOrderStatus(updatedOrderForStatus);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
         const itemName = orderToUpdate.items.find(i => i.itemId === itemId)?.itemName || 'Article';
         const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme ${newStatus}`, by: userInfo };
-        await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]});
+        
+        await updateDoc(orderRef, { 
+            items: newItems, 
+            currentStatus: newGlobalStatus, 
+            history: [...(orderToUpdate.history || []), historyEvent]
+        });
         showToast(`'${itemName}' mis à jour !`, 'success');
-    }, [db, currentUser, orders, showToast, getCurrentUserInfo]);
+    }, [db, currentUser, showToast, getCurrentUserInfo]);
 
-    const handleCancelItem = (orderId, itemId, itemName) => { setItemToCancel({ orderId, itemId, itemName }); setShowItemCancelModal(true); };
+    const handleCancelItem = useCallback((order, itemId, itemName) => { 
+        setItemToCancel({ order, itemId, itemName }); 
+        setShowItemCancelModal(true); 
+    }, []);
+
     const handleConfirmCancelItem = useCallback(async (note) => {
-        if (!itemToCancel) return;
-        const { orderId, itemId, itemName } = itemToCancel;
-        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
-        const orderToUpdate = orders.find(o => o.id === orderId);
-        if (!orderToUpdate) return;
-        const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: ITEM_STATUS.CANCELLED } : item);
-        const updatedOrder = { ...orderToUpdate, items: newItems };
-        const newGlobalStatus = getDerivedOrderStatus(updatedOrder);
+        if (!itemToCancel || !itemToCancel.order) return;
+        
+        const { order, itemId, itemName } = itemToCancel;
+        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, order.id);
+        const newItems = order.items.map(item => item.itemId === itemId ? { ...item, status: ITEM_STATUS.CANCELLED } : item);
+        const updatedOrderForStatus = { ...order, items: newItems };
+        const newGlobalStatus = getDerivedOrderStatus(updatedOrderForStatus);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
-        const historyEvent = { timestamp: now, action: `Article '${itemName}' annulé`, by: userInfo, ...(note.trim() && { note: note.trim() }) };
-        await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]});
+        const historyEvent = { 
+            timestamp: now, 
+            action: `Article '${itemName}' annulé`, 
+            by: userInfo, 
+            ...(note.trim() && { note: note.trim() }) 
+        };
+        
+        await updateDoc(orderRef, { 
+            items: newItems, 
+            currentStatus: newGlobalStatus, 
+            history: [...(order.history || []), historyEvent]
+        });
         showToast(`'${itemName}' a été annulé.`, 'success');
-        setShowItemCancelModal(false); setItemToCancel(null);
-    }, [db, currentUser, orders, itemToCancel, showToast, getCurrentUserInfo]);
+        setShowItemCancelModal(false); 
+        setItemToCancel(null);
+    }, [db, currentUser, itemToCancel, showToast, getCurrentUserInfo]);
     
-    const handleUpdateOrderStatus = useCallback(async (orderId, newStatus, note = null) => {
-        if (!db || !currentUser) return;
-        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId);
-        const orderToUpdate = orders.find(o => o.id === orderId);
-        if (!orderToUpdate) return;
+    const handleUpdateOrderStatus = useCallback(async (orderToUpdate, newStatus, note = null) => {
+        if (!db || !currentUser || !orderToUpdate) return;
+
+        const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToUpdate.id);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
-        const historyEvent = { timestamp: now, action: `Commande passée au statut '${newStatus}'`, by: userInfo, ...(note && { note }) };
-        await updateDoc(orderRef, { currentStatus: newStatus, history: [...(orderToUpdate.history || []), historyEvent] });
+        const historyEvent = { 
+            timestamp: now, 
+            action: `Commande passée au statut '${newStatus}'`, 
+            by: userInfo, 
+            ...(note && { note }) 
+        };
+        
+        await updateDoc(orderRef, { 
+            currentStatus: newStatus, 
+            history: [...(orderToUpdate.history || []), historyEvent] 
+        });
         showToast(`Commande mise à jour !`, 'success');
-    }, [db, currentUser, orders, showToast, getCurrentUserInfo]);
+    }, [db, currentUser, showToast, getCurrentUserInfo]);
 
-    const handleCancelOrder = useCallback((order) => { setOrderToCancel(order); setShowOrderCancelModal(true); }, []);
+    const handleCancelOrder = useCallback((order) => { 
+        setOrderToCancel(order); 
+        setShowOrderCancelModal(true); 
+    }, []);
+
     const handleConfirmCancelOrder = useCallback(async (note) => {
         if (!orderToCancel) return;
-        await handleUpdateOrderStatus(orderToCancel.id, ORDER_STATUS.COMPLETE_CANCELLED, note);
+        
+        await handleUpdateOrderStatus(orderToCancel, ORDER_STATUS.COMPLETE_CANCELLED, note);
         showToast("Commande annulée.", 'success');
         setShowOrderCancelModal(false);
         setOrderToCancel(null);
     }, [orderToCancel, handleUpdateOrderStatus, showToast]);
 
     const handleRevertStatus = useCallback(async (order) => {
-        if (!db || !currentUser || !order.history) return;
+        if (!db || !currentUser || !order.history) {
+            showToast("Impossible de traiter la demande.", 'error');
+            return;
+        }
+
         const statusHistory = order.history
             .filter(h => h.action.includes("passée au statut"))
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        if (statusHistory.length < 1) { showToast("Il n'y a pas de statut précédent où revenir.", 'error'); return; }
-        const previousStatusAction = (statusHistory.length > 1) ? statusHistory[1].action : "Commande passée au statut 'Commandé'";
-        const match = previousStatusAction.match(/'([^']+)'/);
-        if (!match || !match[1]) { showToast("Impossible de trouver le statut précédent.", 'error'); return; }
-        const previousStatus = match[1];
+        
+        if (statusHistory.length === 0) {
+            showToast("Il n'y a pas de statut manuel précédent où revenir.", 'error');
+            return;
+        }
+
+        // Le statut précédent est soit le 2ème de l'historique, soit le statut dérivé de base
+        const previousStatusAction = statusHistory[1]?.action;
+        let newStatus;
+
+        if (previousStatusAction) {
+            const match = previousStatusAction.match(/'([^']+)'/);
+            newStatus = (match && match[1]) ? match[1] : getDerivedOrderStatus(order);
+        } else {
+            newStatus = getDerivedOrderStatus(order);
+        }
+        
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
-        const historyEvent = { timestamp: now, action: `Retour au statut précédent '${previousStatus}'`, by: userInfo };
+        const historyEvent = { 
+            timestamp: now, 
+            action: `Retour au statut précédent '${newStatus}'`, 
+            by: userInfo,
+            note: "Action manuelle de retour en arrière." 
+        };
+
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, order.id);
-        await updateDoc(orderRef, { currentStatus: previousStatus, history: [...order.history, historyEvent] });
-        showToast(`Retour au statut '${previousStatus}' !`, 'success');
+        await updateDoc(orderRef, { currentStatus: newStatus, history: [...order.history, historyEvent] });
+        showToast(`Retour au statut '${newStatus}' !`, 'success');
+
     }, [db, currentUser, showToast, getCurrentUserInfo]);
 
-    const handleDeleteOrder = useCallback((id) => { setOrderToDeleteId(id); setShowConfirmDelete(true); }, []);
-    const handleConfirmDelete = useCallback(async () => { if (!db || !isAdmin || !orderToDeleteId) return; setIsSaving(true); try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId)); showToast("Commande supprimée.", 'success'); } catch (e) { showToast("Échec de la suppression.", 'error'); } finally { setShowConfirmDelete(false); setOrderToDeleteId(null); setIsSaving(false); } }, [db, isAdmin, orderToDeleteId, showToast]);
+    const handleDeleteOrder = useCallback((id) => { 
+        setOrderToDeleteId(id); 
+        setShowConfirmDelete(true); 
+    }, []);
 
-    const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
-    const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
+    const handleConfirmDelete = useCallback(async () => { 
+        if (!db || !isAdmin || !orderToDeleteId) return; 
+        setIsSaving(true); 
+        try { 
+            await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToDeleteId)); 
+            showToast("Commande supprimée.", 'success'); 
+        } catch (e) { 
+            showToast("Échec de la suppression.", 'error'); 
+        } finally { 
+            setShowConfirmDelete(false); 
+            setOrderToDeleteId(null); 
+            setIsSaving(false); 
+        } 
+    }, [db, isAdmin, orderToDeleteId, showToast]);
+
+    const handleShowOrderHistory = useCallback((order) => { 
+        setSelectedOrderForHistory(order); 
+        setShowOrderHistory(true); 
+    }, []);
     
-    if (!authReady) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /></div> ); }
-    if (showLogin || !currentUser) { return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} /></div> ); }
+    const handleEditOrder = useCallback((order) => { 
+        setEditingOrder(order); 
+        setShowOrderForm(true); 
+    }, []);
+    
+    // --- RENDER ---
+    
+    if (!authReady) { 
+        return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /></div> ); 
+    }
+    
+    if (showLogin || !currentUser) { 
+        return ( <div className="bg-gray-900 min-h-screen flex items-center justify-center"><LoginForm onLogin={handleLogin} error={loginError} /></div> ); 
+    }
 
     return (
         <div className="bg-gray-900 text-white min-h-screen font-sans p-4 sm:p-6 lg:p-8">
-            <TailwindColorSafelist /> <AnimationStyles />
+            <TailwindColorSafelist /> 
+            <AnimationStyles />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            
+            {/* Modals */}
             {showConfirmDelete && ( <ConfirmationModal message="Voulez-vous vraiment supprimer cette commande ?" onConfirm={handleConfirmDelete} onCancel={() => setShowConfirmDelete(false)} /> )}
-            {showItemCancelModal && ( <CancellationModal title={`Annuler l'article "${itemToCancel?.itemName}"`} message="Veuillez indiquer une raison pour cette annulation." onConfirm={handleConfirmCancelItem} onCancel={() => setShowItemCancelModal(false)} /> )}
-            {showOrderCancelModal && ( <CancellationModal title={`Annuler la commande pour ${orderToCancel?.clientFirstName} ${orderToCancel?.clientLastName}?`} message="Cette action placera la commande dans les archives avec le statut 'Commande Annulée'." onConfirm={handleConfirmCancelOrder} onCancel={() => setShowOrderCancelModal(false)} /> )}
+            {showItemCancelModal && itemToCancel && ( <CancellationModal title={`Annuler l'article "${itemToCancel.itemName}"`} message="Veuillez indiquer une raison pour cette annulation." onConfirm={handleConfirmCancelItem} onCancel={() => setShowItemCancelModal(false)} /> )}
+            {showOrderCancelModal && orderToCancel && ( <CancellationModal title={`Annuler la commande pour ${orderToCancel.clientFirstName} ${orderToCancel.clientLastName}?`} message="Cette action placera la commande dans les archives avec le statut 'Commande Annulée'." onConfirm={handleConfirmCancelOrder} onCancel={() => setShowOrderCancelModal(false)} /> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
             
@@ -403,11 +600,13 @@ export default function App() {
                         {isAdmin ? ( <div className="flex flex-wrap gap-2 sm:gap-4"><span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold text-white shadow-md"><UserCheck size={16} /> Mode Admin</span><Tooltip text="Se déconnecter"><button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip></div> ) : ( <Tooltip text="Se déconnecter"><button onClick={handleLogout} aria-label="Se déconnecter" className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip> )}
                     </div>
                 </header>
+                
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-6">
                     <button onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><PlusCircle size={20} /> Nouvelle Commande</button>
                     <div className="flex-grow"></div>
                     {viewMode === 'active' ? ( <button onClick={() => setViewMode('archived')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><Archive size={20} /> Consulter les Archives</button> ) : ( <button onClick={() => setViewMode('active')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><List size={20} /> Commandes Actives</button> )}
                 </div>
+                
                 <div className="bg-gray-800/50 rounded-2xl p-4 mb-8">
                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                          <div className="relative flex-grow"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" /></div>
@@ -415,18 +614,28 @@ export default function App() {
                          <div className="relative"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
                      </div>
                 </div>
+                
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
-                {isLoading ? ( <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /><p className="text-gray-400 mt-4">Chargement...</p></div> ) : filteredAndSortedOrders.length === 0 ? ( <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">{viewMode === 'active' ? 'Aucune commande active trouvée' : 'Aucune commande dans les archives'}</h2><p className="text-gray-400 mt-2">{viewMode === 'active' ? 'Créez une nouvelle commande pour commencer.' : ''}</p></div> ) : (
+                
+                {isLoading ? ( 
+                    <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /><p className="text-gray-400 mt-4">Chargement...</p></div> 
+                ) : filteredAndSortedOrders.length === 0 ? ( 
+                    <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">{viewMode === 'active' ? 'Aucune commande active trouvée' : 'Aucune commande dans les archives'}</h2><p className="text-gray-400 mt-2">{viewMode === 'active' ? 'Créez une nouvelle commande pour commencer.' : ''}</p></div> 
+                ) : (
                     <div className="grid grid-cols-1 gap-6 animate-fade-in">
                         {filteredAndSortedOrders.map((order) => (
                             <OrderCard 
-                                key={order.id} order={order} 
-                                onUpdateItemStatus={handleUpdateItemStatus} onCancelItem={handleCancelItem}
+                                key={order.id} 
+                                order={order} 
+                                onUpdateItemStatus={handleUpdateItemStatus} 
+                                onCancelItem={handleCancelItem}
                                 onUpdateOrderStatus={handleUpdateOrderStatus}
                                 onCancelOrder={handleCancelOrder}
                                 onRevertStatus={handleRevertStatus}
                                 isAdmin={isAdmin} 
-                                onShowHistory={handleShowOrderHistory} onEdit={handleEditOrder} onDelete={handleDeleteOrder}
+                                onShowHistory={handleShowOrderHistory} 
+                                onEdit={handleEditOrder} 
+                                onDelete={handleDeleteOrder}
                             />
                         ))}
                     </div>
