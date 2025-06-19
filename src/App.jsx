@@ -68,10 +68,7 @@ const getUserDisplayName = (email) => {
 
 const getDerivedOrderStatus = (order) => {
     if (!order || !order.items || order.items.length === 0) {
-        if(Object.values(ORDER_STATUSES_CONFIG).some(s => s.label === order.currentStatus)){
-             return order.currentStatus;
-        }
-        return ORDER_STATUS.ORDERED;
+        return order.currentStatus;
     }
 
     const activeItems = order.items.filter(item => item.status !== ITEM_STATUS.CANCELLED);
@@ -166,20 +163,26 @@ const OrderHistoryModal = ({ order, onClose }) => {
 };
 
 // =================================================================
-// COMPOSANT OrderCard (Fortement modifié)
+// COMPOSANT OrderCard (Corrigé)
 // =================================================================
 const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatus, isAdmin, onShowHistory, onEdit, onDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
+
+    const derivedStatus = getDerivedOrderStatus(order);
     
-    const globalStatus = getDerivedOrderStatus(order);
-    const statusConfig = ORDER_STATUSES_CONFIG[globalStatus] || { label: globalStatus, colorClass: 'bg-gray-500' };
+    // Le statut affiché est le statut enregistré (ex: Prévenu), SAUF si c'est un statut initial, 
+    // auquel cas on affiche le statut calculé (ex: Partiellement Reçu).
+    const displayStatus = [
+        ORDER_STATUS.ORDERED, 
+        ORDER_STATUS.PARTIALLY_RECEIVED, 
+        ORDER_STATUS.READY_FOR_PICKUP
+    ].includes(order.currentStatus) ? derivedStatus : order.currentStatus;
 
-    const finalGlobalStatuses = [ORDER_STATUS.PICKED_UP, ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED];
-    const isOrderFinal = finalGlobalStatuses.includes(order.currentStatus);
+    const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500' };
 
-    const canNotify = globalStatus === ORDER_STATUS.READY_FOR_PICKUP && !isOrderFinal;
-    const canBePickedUp = order.currentStatus === ORDER_STATUS.NOTIFIED && !isOrderFinal;
-    const canBeArchived = order.currentStatus === ORDER_STATUS.PICKED_UP && !isOrderFinal;
+    const canNotify = displayStatus === ORDER_STATUS.READY_FOR_PICKUP;
+    const canBePickedUp = displayStatus === ORDER_STATUS.NOTIFIED;
+    const canBeArchived = displayStatus === ORDER_STATUS.PICKED_UP;
 
     return (
         <div className="bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:shadow-2xl hover:ring-2 hover:ring-blue-500/50">
@@ -206,11 +209,11 @@ const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatu
                                 <div className="flex-1">
                                     <p className="text-white font-medium">{item.itemName} (Qté: {item.quantity})</p>
                                     <p className={`text-xs font-bold ${item.status === ITEM_STATUS.RECEIVED ? 'text-green-400' : item.status === ITEM_STATUS.CANCELLED ? 'text-red-400' : 'text-yellow-400'}`}>
-                                        Statut : {item.status}
+                                        <span>Statut : {item.status || 'N/A'}</span>
                                     </p>
                                 </div>
                                 <div className="flex gap-2 self-start sm:self-center">
-                                    {item.status === ITEM_STATUS.ORDERED && !isOrderFinal && (
+                                    {item.status === ITEM_STATUS.ORDERED && (
                                         <>
                                             <button onClick={() => onUpdateItemStatus(order.id, item.itemId, ITEM_STATUS.RECEIVED)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Marquer Reçu</button>
                                             <button onClick={() => onCancelItem(order.id, item.itemId, item.itemName)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Annuler</button>
@@ -259,7 +262,7 @@ export default function App() {
     const [editingOrder, setEditingOrder] = useState(null);
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [orderToDeleteId, setOrderToDeleteId] = useState(null);
-    const [itemToCancel, setItemToCancel] = useState(null); // {orderId, itemId, itemName}
+    const [itemToCancel, setItemToCancel] = useState(null);
     const [showItemCancelModal, setShowItemCancelModal] = useState(false);
     const [showOrderHistory, setShowOrderHistory] = useState(false);
     const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
@@ -359,7 +362,18 @@ export default function App() {
         try {
             if (editingOrder) {
                 const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id);
-                await updateDoc(orderRef, { ...orderData, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] });
+                // Lors de la modification, on s'assure de préserver les itemId et statuts existants
+                const existingItems = editingOrder.items || [];
+                const updatedItems = orderData.items.map((newItem, index) => {
+                    const existing = existingItems.find(e => e.itemName === newItem.itemName);
+                    return existing ? existing : {
+                        ...newItem,
+                        itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        status: ITEM_STATUS.ORDERED
+                    };
+                });
+                
+                await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande modifiée", by: userInfo }] });
                 showToast("Commande modifiée !", 'success');
             } else {
                 const itemsWithStatus = orderData.items.map(item => ({
@@ -374,6 +388,7 @@ export default function App() {
             setShowOrderForm(false);
             setEditingOrder(null);
         } catch (e) {
+            console.error(e);
             showToast("Échec de l'enregistrement.", 'error');
         } finally {
             setIsSaving(false);
