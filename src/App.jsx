@@ -27,8 +27,8 @@ const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
 const ADMIN_EMAIL = "jullien.gault@orange-store.com";
 
 const ORDER_STATUSES_CONFIG = {
-    ORDERED:   { key: 'ORDERED',   label: 'Commandé', description: 'Commande passée',                 colorClass: 'bg-yellow-500', icon: Package,   order: 1, allowTransitionTo: ['RECEIVED'],  allowTransitionFrom: [] },
-    RECEIVED:  { key: 'RECEIVED',  label: 'Reçu',     description: 'Article reçu en boutique',        colorClass: 'bg-green-500',  icon: Truck,     order: 2, allowTransitionTo: ['NOTIFIED'],  allowTransitionFrom: ['ORDERED'] },
+    ORDERED:   { key: 'ORDERED',   label: 'Commandé', description: 'Commande passée',                   colorClass: 'bg-yellow-500', icon: Package,   order: 1, allowTransitionTo: ['RECEIVED'],  allowTransitionFrom: [] },
+    RECEIVED:  { key: 'RECEIVED',  label: 'Reçu',     description: 'Article reçu en boutique',          colorClass: 'bg-green-500',  icon: Truck,     order: 2, allowTransitionTo: ['NOTIFIED'],  allowTransitionFrom: ['ORDERED'] },
     NOTIFIED:  { key: 'NOTIFIED',  label: 'Prévenu',  description: 'Client prévenu de la disponibilité', colorClass: 'bg-blue-500',   icon: Bell,      order: 3, allowTransitionTo: ['PICKED_UP'], allowTransitionFrom: ['RECEIVED'] },
     PICKED_UP: { key: 'PICKED_UP', label: 'Retiré',   description: 'Colis retiré par le client',      colorClass: 'bg-purple-600', icon: UserCheck, order: 4, allowTransitionTo: ['ARCHIVED'],  allowTransitionFrom: ['NOTIFIED'] },
     ARCHIVED:  { key: 'ARCHIVED',  label: 'Archivé',  description: 'Commande terminée et archivée',   colorClass: 'bg-gray-600',   icon: Archive,   order: 5, allowTransitionTo: [],            allowTransitionFrom: ['PICKED_UP'] }
@@ -383,7 +383,7 @@ export default function App() {
             {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} /> )}
             {showRevertModal && ( <RevertStatusModal onClose={() => setShowRevertModal(false)} onRevert={handleRevertStatus} possibleStatuses={possibleRevertStatuses}/> )}
 
-            <div className="max-w-4xl mx-auto px-2 sm:px-4 lg:px-6"> 
+            <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6"> 
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
                         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker OS</h1>
