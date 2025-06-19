@@ -24,7 +24,19 @@ const firebaseConfig = {
 };
 
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
-const ADMIN_EMAIL = "jullien.gault@orange-store.com";
+
+// MODIFICATION: Liste des administrateurs
+const ADMIN_EMAILS = [
+    "jullien.gault@orange-store.com",
+    "marvyn.ammiche@orange-store.com"
+];
+
+// MODIFICATION: Mappage des noms spécifiques pour un affichage propre
+const SPECIAL_USER_NAMES = {
+    "jullien.gault@orange-store.com": "Jullien",
+    "marvyn.ammiche@orange-store.com": "Marvyn"
+};
+
 
 const ITEM_STATUS = {
     ORDERED: 'Commandé',
@@ -52,10 +64,14 @@ const ORDER_STATUSES_CONFIG = {
     [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Commande Annulée', colorClass: 'bg-red-700', icon: XCircle }
 };
 
-
+// MODIFICATION: Fonction mise à jour pour gérer plusieurs noms spécifiques
 const getUserDisplayName = (email) => {
     if (!email) return 'N/A';
-    if (email === ADMIN_EMAIL) return 'Jullien';
+    // Vérifie d'abord si l'email a un nom spécifique défini
+    if (SPECIAL_USER_NAMES[email]) {
+        return SPECIAL_USER_NAMES[email];
+    }
+    // Logique par défaut pour les autres utilisateurs
     const namePart = email.split('@')[0].split('.')[0];
     return namePart.charAt(0).toUpperCase() + namePart.slice(1);
 };
@@ -117,7 +133,6 @@ const formatPhoneNumber = (phoneStr) => {
     return cleaned;
 };
 
-// NOUVELLE FONCTION: Pour formater la date de commande de manière lisible
 const formatOrderDate = (isoString) => {
     if (!isoString) return 'Date inconnue';
     try {
@@ -191,13 +206,11 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                 <div className="flex-1 pr-4">
                     <h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3>
                     
-                    {/* Infos client prioritaires */}
                     <div className="mt-2 space-y-1 text-sm text-gray-300">
                         {order.clientPhone && <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400"/><span>{formatPhoneNumber(order.clientPhone)}</span></div>}
                         {order.clientEmail && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400"/><span>{order.clientEmail}</span></div>}
                     </div>
 
-                    {/* NOUVEAU: Infos sur la commande (conseiller et date) */}
                     <div className="mt-3 pt-3 border-t border-gray-700/60 flex items-center flex-wrap gap-x-2 text-xs text-gray-400">
                         <User size={14} />
                         <span>Par</span>
@@ -312,7 +325,7 @@ export default function App() {
     const [viewMode, setViewMode] = useState('active');
     const [toast, setToast] = useState(null);
 
-    useEffect(() => { document.title = "AOD Tracker OS"; }, []);
+    useEffect(() => { document.title = "AOD Tracker 2.0"; }, []);
 
     useEffect(() => {
         try {
@@ -322,7 +335,12 @@ export default function App() {
             setAuth(authInstance);
             setDb(dbInstance);
             const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-                if (user) { setCurrentUser(user); setIsAdmin(user.email === ADMIN_EMAIL); setShowLogin(false); } 
+                if (user) { 
+                    setCurrentUser(user);
+                    // MODIFICATION: Vérifie si l'utilisateur fait partie de la liste des admins
+                    setIsAdmin(ADMIN_EMAILS.includes(user.email)); 
+                    setShowLogin(false); 
+                } 
                 else { setCurrentUser(null); setIsAdmin(false); setShowLogin(true); }
                 setAuthReady(true);
             });
@@ -373,7 +391,7 @@ export default function App() {
 
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) { setLoginError("Service d'authentification non prêt."); return; } try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
-    const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'counselor' }; }, [currentUser]);
+    const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: ADMIN_EMAILS.includes(currentUser.email) ? 'admin' : 'counselor' }; }, [currentUser]);
 
     // ----- GESTIONNAIRES D'ACTIONS SUR LES COMMANDES -----
 
@@ -514,7 +532,7 @@ export default function App() {
             <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                     <div>
-                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker OS</h1>
+                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1>
                         <p className="text-gray-400 mt-1 text-sm sm:text-base">Suivez vos commandes d'accessoires en temps réel.</p>
                     </div>
                     <div className="mt-4 sm:mt-0 flex flex-wrap items-center justify-end gap-2 sm:gap-4">
