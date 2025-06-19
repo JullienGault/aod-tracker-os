@@ -72,6 +72,16 @@ const getColorClassForHistoryAction = (action) => {
     return 'text-gray-400';
 };
 
+const formatPhoneNumber = (phoneStr) => {
+    if (!phoneStr) return null;
+    const cleaned = ('' + phoneStr).replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+    if (match) {
+        return `${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]}`;
+    }
+    return cleaned;
+};
+
 
 // =================================================================
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
@@ -140,7 +150,6 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, onCancel, isAdmin,
     const getStatusColor = (statusLabel) => { const statusConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === statusLabel); return statusConfig?.colorClass || 'bg-gray-500'; };
     const getNextStatusButton = (currentStatusLabel) => { const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === currentStatusLabel); if (!currentConfig || currentConfig.allowTransitionTo.length === 0) return null; const nextStatusKey = currentConfig.allowTransitionTo[0]; const nextStatusConfig = ORDER_STATUSES_CONFIG[nextStatusKey]; if (!nextStatusConfig) return null; const nextStatusLabel = nextStatusConfig.label; const ButtonIcon = nextStatusConfig.icon; const buttonColorBase = nextStatusConfig.colorClass; const buttonColorHover = buttonColorBase.includes('600') ? buttonColorBase.replace('600', '700') : buttonColorBase.replace('500', '600'); return ( <button onClick={() => onUpdateStatus(order.id, nextStatusLabel)} className={`flex-1 ${buttonColorBase} hover:${buttonColorHover} text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2`}><ButtonIcon size={18} /> Marquer "{nextStatusLabel}"</button> ); };
     const getRevertStatusButton = () => { if (!isAdmin) return null; const currentConfig = Object.values(ORDER_STATUSES_CONFIG).find(s => s.label === order.currentStatus); if (!currentConfig || currentConfig.allowTransitionFrom.length === 0) return null; return ( <button onClick={() => onShowRevertModal(order)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"><Undo2 size={16} /> Retour</button> ); };
-    const itemsSummary = order.items && order.items.length > 0 ? `${order.items[0].itemName}${order.items.length > 1 ? ` (+ ${order.items.length - 1} autre${order.items.length > 2 ? 's' : ''})` : ''}` : "Aucun article";
     const canBeCancelled = !['Retiré', 'Archivé', 'Annulé'].includes(order.currentStatus);
 
     return (
@@ -148,7 +157,20 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, onCancel, isAdmin,
             <div className="flex justify-between items-center p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={() => setIsOpen(!isOpen)}>
                 <div>
                     <h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3>
-                    <p className="text-gray-400 text-sm mt-1">{itemsSummary}</p>
+                    <div className="mt-2 space-y-1 text-sm text-gray-300">
+                        {order.clientPhone && (
+                            <div className="flex items-center gap-2">
+                                <Phone size={14} className="text-gray-400"/>
+                                <span>{formatPhoneNumber(order.clientPhone)}</span>
+                            </div>
+                        )}
+                        {order.clientEmail && (
+                             <div className="flex items-center gap-2">
+                                <Mail size={14} className="text-gray-400"/>
+                                <span>{order.clientEmail}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                     <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${getStatusColor(order.currentStatus)}`}>{order.currentStatus}</span>
@@ -157,9 +179,6 @@ const OrderCard = ({ order, onUpdateStatus, onEdit, onDelete, onCancel, isAdmin,
             </div>
             <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
                 <div className="p-4 sm:p-6 border-t border-gray-700">
-                    {order.clientEmail && (<p className="text-gray-300 text-sm flex items-center gap-2 mb-1"><Mail size={16} /> {order.clientEmail}</p>)}
-                    {order.clientPhone && (<p className="text-gray-300 text-sm flex items-center gap-2 mb-2"><Phone size={16} /> {order.clientPhone}</p>)}
-                    <hr className="border-gray-700 my-4" />
                     <h4 className="text-md font-semibold text-gray-300 mb-2">Détail des articles :</h4>
                     <ul className="list-disc list-inside text-gray-300 mb-2 pl-4">
                         {order.items?.map((item, idx) => (<li key={idx} className="text-sm"><span className="font-semibold">{item.itemName}</span> (Qté: {item.quantity})</li>))}
