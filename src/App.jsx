@@ -5,10 +5,10 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
-// Importations des icônes Lucide React (avec les nouvelles icônes)
+// Importations des icônes Lucide React
 import {
     PlusCircle, Package, CheckCircle, Bell, History, User, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, Archive, Undo2, List, XCircle, FileWarning,
-    MessageSquareText, PhoneCall, BellRing // NOUVELLES ICÔNES AJOUTÉES
+    MessageSquareText, PhoneCall, BellRing
 } from 'lucide-react';
 
 // =================================================================
@@ -152,23 +152,179 @@ const HistoryActionText = ({ text }) => { if (!text) return null; const parts = 
 const AnimationStyles = () => ( <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .5s ease-in-out}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}.tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding:8px 12px;background-color:rgba(45,55,72,.9);color:#fff;border-radius:8px;font-size:14px;white-space:pre-wrap;z-index:50;opacity:0;visibility:hidden;transition:opacity .2s ease-in-out,visibility .2s ease-in-out;box-shadow:0 4px 10px rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1)}.group:hover .tooltip{opacity:1;visibility:visible}.custom-scrollbar::-webkit-scrollbar{width:8px}.custom-scrollbar::-webkit-scrollbar-track{background:#374151;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#60A5FA;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb:hover{background:#3B82F6}`}</style> );
 const Tooltip = ({ children, text }) => ( <div className="relative inline-block group">{children}{text && (<div className="tooltip">{text}</div>)}</div> );
 const Toast = ({ message, type, onClose }) => { const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500'; const Icon = type === 'success' ? Check : AlertTriangle; return ( <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}><Icon size={24} /><span>{message}</span><button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors"><X size={20} /></button></div> ); };
-const OrderForm = ({ onSave, initialData, isSaving, onClose }) => { const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || ''); const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || ''); const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || ''); const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || ''); const [receiptNumber, setReceiptNumber] = useState(initialData?.receiptNumber || ''); const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items.map(i => ({itemName: i.itemName, quantity: i.quantity})) : [{ itemName: '', quantity: '' }]); const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || ''); const [formError, setFormError] = useState(null); const handleItemChange = useCallback((index, field, value) => { const newItems = [...items]; newItems[index][field] = value; setItems(newItems); }, [items]); const handleAddItem = useCallback(() => { setItems([...items, { itemName: '', quantity: '' }]); }, [items]); const handleRemoveItem = useCallback((index) => { const newItems = items.filter((_, i) => i !== index); setItems(newItems); }, [items]); const handleSubmit = useCallback(async (e) => { e.preventDefault(); setFormError(null); if (!clientFirstName || !clientLastName) { setFormError("Veuillez remplir le prénom et le nom du client."); return; } const validItems = items.filter(item => item.itemName.trim() && parseInt(item.quantity, 10) > 0); if (validItems.length === 0) { setFormError("Veuillez ajouter au moins un article valide (Nom de l'accessoire et Quantité > 0)."); return; } try { await onSave({ clientFirstName: clientFirstName.trim(), clientLastName: clientLastName.trim(), clientEmail: clientEmail.trim(), clientPhone: clientPhone.trim(), receiptNumber: receiptNumber.trim(), items: validItems.map(item => ({ itemName: item.itemName.trim(), quantity: parseInt(item.quantity, 10) })), orderNotes: orderNotes.trim(), }); onClose(); } catch (error) { console.error("Error saving order:", error); setFormError("Échec de l'enregistrement de la commande. Veuillez réessayer."); } }, [clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, items, orderNotes, onSave, onClose]); return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] md:max-h-[80vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-6 text-center">{initialData ? 'Modifier la commande' : 'Nouvelle Commande d\'Accessoire'}</h2><form onSubmit={handleSubmit} className="space-y-6"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label htmlFor="clientFirstName" className="block text-sm font-medium text-gray-300 mb-2">Prénom client *</label><input id="clientFirstName" type="text" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="clientLastName" className="block text-sm font-medium text-gray-300 mb-2">Nom client *</label><input id="clientLastName" type="text" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div></div><div><label htmlFor="clientEmail" className="block text-sm font-medium text-gray-300 mb-2">Email client (optionnel)</label><input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="clientPhone" className="block text-sm font-medium text-gray-300 mb-2">Téléphone client (optionnel)</label><input id="clientPhone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><hr className="border-gray-700" /><h3 className="text-xl font-semibold text-white mb-4">Articles Commandés *</h3><div className="space-y-3">{items.map((item, index) => ( <div key={index} className="flex flex-col sm:flex-row items-end gap-2 bg-gray-700/50 p-3 rounded-lg"><div className="flex-grow w-full"><label htmlFor={`itemName-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Article</label><input id={`itemName-${index}`} type="text" placeholder="Nom de l'accessoire" value={item.itemName} onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} required className="w-full bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm" /></div><div className="w-full sm:w-auto"><label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Qté</label><input id={`quantity-${index}`} type="number" placeholder="Qté" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} required className="w-full sm:w-20 bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm" /></div>{items.length > 1 && ( <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-red-400 hover:text-red-300 transition-colors self-end sm:self-auto"><MinusCircle size={20} /></button> )}</div> ))}</div><button type="button" onClick={handleAddItem} className="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"><PlusCircle size={20} /> Ajouter un article</button><hr className="border-gray-700" /><div><label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-300 mb-2">Numéro de ticket de caisse (optionnel)</label><input id="receiptNumber" type="text" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="orderNotes" className="block text-sm font-medium text-gray-300 mb-2">Notes (optionnel)</label><textarea id="orderNotes" value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} rows="3" className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg"></textarea></div>{formError && (<div className="bg-red-500/10 border border-red-500/30 text-red-300 p-3 rounded-lg flex items-center space-x-3"><AlertTriangle className="w-5 h-5" /><span>{formError}</span></div>)}<button type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{isSaving ? 'Enregistrement...' : (initialData ? 'Mettre à jour la commande' : 'Passer la commande')}</button></form></div></div> ); };
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-blue-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const CancellationModal = ({ onConfirm, onCancel, title, message }) => { const [note, setNote] = useState(''); const handleConfirmClick = () => { onConfirm(note); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-red-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="cancellation-note" className="block text-sm font-medium text-gray-300 mb-2">Raison de l'annulation (optionnel)</label><textarea id="cancellation-note" rows="3" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Rupture de stock fournisseur, demande du client..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Retour</button><button onClick={handleConfirmClick} className="bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Confirmer l'annulation</button></div></div></div> ); };
 const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => { const [reason, setReason] = useState(''); const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison du retour en arrière (obligatoire)</label><textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation, le client n'a pas encore été prévenu..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button><button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button></div></div></div> ); };
 const LoginForm = ({ onLogin, error }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center mb-6"><LogIn className="mx-auto h-12 w-12 text-blue-400" /><h2 className="mt-4 text-2xl font-bold text-white">Connexion</h2><p className="text-gray-400 mt-1">Accès réservé aux conseillers.</p></div><form onSubmit={handleSubmit} className="space-y-6"><div><label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Adresse Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && (<p className="text-red-400 text-sm text-center">{error}</p>)}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div> ); };
 
 // =================================================================
-// NOUVEAUX COMPOSANTS (Notification et Historique mis à jour)
+// COMPOSANT OrderForm (Mis à jour avec Axe 2 et 3)
+// =================================================================
+const OrderForm = ({ onSave, initialData, isSaving, onClose }) => {
+    const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
+    const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
+    const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '');
+    const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '');
+    const [receiptNumber, setReceiptNumber] = useState(initialData?.receiptNumber || '');
+    const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items.map(i => ({itemName: i.itemName, quantity: i.quantity})) : [{ itemName: '', quantity: '' }]);
+    const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
+    const [formError, setFormError] = useState(null);
+
+    const handleItemChange = useCallback((index, field, value) => {
+        const newItems = [...items];
+        newItems[index][field] = value;
+        setItems(newItems);
+    }, [items]);
+
+    const handleAddItem = useCallback(() => {
+        setItems([...items, { itemName: '', quantity: '' }]);
+    }, [items]);
+
+    const handleRemoveItem = useCallback((index) => {
+        const newItems = items.filter((_, i) => i !== index);
+        setItems(newItems);
+    }, [items]);
+
+    const handleFirstNameChange = (e) => {
+        const value = e.target.value;
+        if (value === '') {
+            setClientFirstName('');
+        } else {
+            setClientFirstName(value.charAt(0).toUpperCase() + value.slice(1).toLowerCase());
+        }
+    };
+
+    const handleLastNameChange = (e) => {
+        setClientLastName(e.target.value.toUpperCase());
+    };
+
+    const handleSubmit = useCallback(async (e) => {
+        e.preventDefault();
+        setFormError(null);
+
+        if (!clientFirstName || !clientLastName || !clientEmail || !clientPhone) {
+            setFormError("Veuillez remplir tous les champs client obligatoires (*).");
+            return;
+        }
+
+        const validItems = items.filter(item => item.itemName.trim() && parseInt(item.quantity, 10) > 0);
+        if (validItems.length === 0) {
+            setFormError("Veuillez ajouter au moins un article valide (Nom et Quantité > 0).");
+            return;
+        }
+        try {
+            await onSave({
+                clientFirstName: clientFirstName.trim(),
+                clientLastName: clientLastName.trim(),
+                clientEmail: clientEmail.trim(),
+                clientPhone: clientPhone.trim(),
+                receiptNumber: receiptNumber.trim(),
+                items: validItems.map(item => ({ itemName: item.itemName.trim(), quantity: parseInt(item.quantity, 10) })),
+                orderNotes: orderNotes.trim(),
+            });
+            onClose();
+        } catch (error) {
+            console.error("Error saving order:", error);
+            setFormError("Échec de l'enregistrement de la commande. Veuillez réessayer.");
+        }
+    }, [clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, items, orderNotes, onSave, onClose]);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] md:max-h-[80vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+                <button onClick={onClose} aria-label="Fermer le formulaire" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
+                <h2 className="text-2xl font-bold text-white mb-6 text-center">{initialData ? 'Modifier la commande' : 'Nouvelle Commande d\'Accessoire'}</h2>
+                
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    
+                    <div>
+                        <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2">
+                            <User size={20} /> Informations Client
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label htmlFor="clientFirstName" className="block text-sm font-medium text-gray-300 mb-2">Prénom client *</label>
+                                    <input id="clientFirstName" type="text" value={clientFirstName} onChange={handleFirstNameChange} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                                </div>
+                                <div>
+                                    <label htmlFor="clientLastName" className="block text-sm font-medium text-gray-300 mb-2">Nom client *</label>
+                                    <input id="clientLastName" type="text" value={clientLastName} onChange={handleLastNameChange} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <label htmlFor="clientEmail" className="block text-sm font-medium text-gray-300 mb-2">Email client *</label>
+                                <input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                            </div>
+                            <div>
+                                <label htmlFor="clientPhone" className="block text-sm font-medium text-gray-300 mb-2">Téléphone client *</label>
+                                <input id="clientPhone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr className="border-gray-700" />
+
+                    <div>
+                        <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2">
+                            <Package size={20} /> Articles Commandés *
+                        </h3>
+                        <div className="space-y-3">{items.map((item, index) => (
+                            <div key={index} className="flex flex-col sm:flex-row items-end gap-2 bg-gray-700/50 p-3 rounded-lg">
+                                <div className="flex-grow w-full">
+                                    <label htmlFor={`itemName-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Article</label>
+                                    <input id={`itemName-${index}`} type="text" placeholder="Nom de l'accessoire" value={item.itemName} onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} required className="w-full bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm" />
+                                </div>
+                                <div className="w-full sm:w-auto">
+                                    <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-400 mb-1">Qté</label>
+                                    <input id={`quantity-${index}`} type="number" placeholder="Qté" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} required min="1" className="w-full sm:w-20 bg-gray-600 border-gray-500 text-white p-2 rounded-lg text-sm" />
+                                </div>
+                                {items.length > 1 && (
+                                    <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-red-400 hover:text-red-300 transition-colors self-end sm:self-auto"><MinusCircle size={20} /></button>
+                                )}
+                            </div>
+                        ))}</div>
+                        <button type="button" onClick={handleAddItem} className="mt-4 w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"><PlusCircle size={20} /> Ajouter un article</button>
+                    </div>
+
+                    <hr className="border-gray-700" />
+                    
+                    <div>
+                         <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2">
+                            <Info size={20} /> Informations Complémentaires
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-300 mb-2">Numéro de ticket de caisse (optionnel)</label>
+                                <input id="receiptNumber" type="text" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                            </div>
+                            <div>
+                                <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-300 mb-2">Notes (optionnel)</label>
+                                <textarea id="orderNotes" value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} rows="3" className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    {formError && (<div className="bg-red-500/10 border border-red-500/30 text-red-300 p-3 rounded-lg flex items-center space-x-3"><AlertTriangle className="w-5 h-5" /><span>{formError}</span></div>)}
+                    
+                    <button type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-lg">
+                        {isSaving ? 'Enregistrement...' : (initialData ? 'Mettre à jour la commande' : 'Passer la commande')}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// =================================================================
+// AUTRES COMPOSANTS (Notification, Historique, Card, etc.)
 // =================================================================
 
 const NotificationModal = ({ onConfirm, onCancel }) => {
     const [method, setMethod] = useState('email');
     const [voicemail, setVoicemail] = useState(false);
 
-    const handleConfirm = () => {
-        onConfirm({ method, voicemail });
-    };
+    const handleConfirm = () => { onConfirm({ method, voicemail }); };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}>
@@ -177,56 +333,18 @@ const NotificationModal = ({ onConfirm, onCancel }) => {
                     <Bell className="mx-auto h-12 w-12 text-blue-400" />
                     <h3 className="mt-4 text-xl font-medium text-white">Comment le client a-t-il été prévenu ?</h3>
                 </div>
-
                 <div className="mt-6 space-y-4">
-                    <div
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'email' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`}
-                        onClick={() => setMethod('email')}
-                    >
-                        <div className="flex items-center gap-4">
-                            <Mail size={24} className={method === 'email' ? 'text-blue-400' : 'text-gray-400'} />
-                            <div>
-                                <p className="font-semibold text-white">Par Email (Automatique)</p>
-                                <p className="text-sm text-gray-400">Un email sera envoyé au client.</p>
-                            </div>
-                        </div>
+                    <div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'email' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('email')}>
+                        <div className="flex items-center gap-4"><Mail size={24} className={method === 'email' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Email (Automatique)</p><p className="text-sm text-gray-400">Un email sera envoyé au client.</p></div></div>
                     </div>
-
-                    <div
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'sms' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`}
-                        onClick={() => setMethod('sms')}
-                    >
-                        <div className="flex items-center gap-4">
-                            <MessageSquareText size={24} className={method === 'sms' ? 'text-blue-400' : 'text-gray-400'} />
-                            <div>
-                                <p className="font-semibold text-white">Par SMS</p>
-                                <p className="text-sm text-gray-400">Confirmer manuellement l'envoi d'un SMS.</p>
-                            </div>
-                        </div>
+                    <div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'sms' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('sms')}>
+                        <div className="flex items-center gap-4"><MessageSquareText size={24} className={method === 'sms' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par SMS</p><p className="text-sm text-gray-400">Confirmer manuellement l'envoi d'un SMS.</p></div></div>
                     </div>
-
-                    <div
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'phone' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`}
-                        onClick={() => setMethod('phone')}
-                    >
-                         <div className="flex items-center gap-4">
-                            <PhoneCall size={24} className={method === 'phone' ? 'text-blue-400' : 'text-gray-400'} />
-                             <div>
-                                <p className="font-semibold text-white">Par Appel Téléphonique</p>
-                                <p className="text-sm text-gray-400">Confirmer manuellement un appel.</p>
-                            </div>
-                        </div>
-                        {method === 'phone' && (
-                            <div className="mt-4 pl-10 flex items-center">
-                                <input id="voicemail-checkbox" type="checkbox" checked={voicemail} onChange={(e) => setVoicemail(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                <label htmlFor="voicemail-checkbox" className="ml-2 block text-sm text-gray-300">
-                                    Un message vocal a été déposé.
-                                </label>
-                            </div>
-                        )}
+                    <div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'phone' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('phone')}>
+                         <div className="flex items-center gap-4"><PhoneCall size={24} className={method === 'phone' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Appel Téléphonique</p><p className="text-sm text-gray-400">Confirmer manuellement un appel.</p></div></div>
+                        {method === 'phone' && ( <div className="mt-4 pl-10 flex items-center"><input id="voicemail-checkbox" type="checkbox" checked={voicemail} onChange={(e) => setVoicemail(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor="voicemail-checkbox" className="ml-2 block text-sm text-gray-300">Un message vocal a été déposé.</label></div> )}
                     </div>
                 </div>
-
                 <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
                     <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button>
                     <button onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Confirmer</button>
@@ -239,7 +357,6 @@ const NotificationModal = ({ onConfirm, onCancel }) => {
 const OrderHistoryModal = ({ order, onClose }) => {
     const getNotificationStats = useCallback((history) => {
         if (!history) return { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 };
-        
         return history.reduce((acc, event) => {
             if (event.action.includes('prévenu')) {
                 acc.total++;
@@ -247,9 +364,7 @@ const OrderHistoryModal = ({ order, onClose }) => {
                 if (event.action.includes('SMS')) acc.sms++;
                 if (event.action.includes('Appel')) {
                     acc.phone++;
-                    if (event.note && event.note.includes('Message vocal')) {
-                        acc.voicemail++;
-                    }
+                    if (event.note && event.note.includes('Message vocal')) { acc.voicemail++; }
                 }
             }
             return acc;
@@ -263,7 +378,6 @@ const OrderHistoryModal = ({ order, onClose }) => {
             <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer l'historique" className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
                 <h2 className="text-2xl font-bold text-white mb-2 text-center">Historique de la commande</h2>
-                
                 {notificationStats.total > 0 && (
                     <div className="bg-gray-900/50 p-4 rounded-lg mb-6 border border-gray-700">
                         <h4 className="font-semibold text-white mb-3 text-center">Résumé des notifications ({notificationStats.total})</h4>
@@ -275,7 +389,6 @@ const OrderHistoryModal = ({ order, onClose }) => {
                         </div>
                     </div>
                 )}
-
                 <div className="space-y-4">
                     {order.history && order.history.length > 0 ? (
                         order.history.slice().reverse().map((event, index) => {
@@ -291,33 +404,23 @@ const OrderHistoryModal = ({ order, onClose }) => {
                                 </div>
                             );
                         })
-                    ) : (
-                        <p className="text-gray-400 text-center">Aucun historique disponible.</p>
-                    )}
+                    ) : ( <p className="text-gray-400 text-center">Aucun historique disponible.</p> )}
                 </div>
             </div>
         </div>
     );
 };
 
-
-// =================================================================
-// COMPOSANT OrderCard (mis à jour pour les nouvelles actions)
-// =================================================================
 const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOrderStatusUpdate, isAdmin, onShowHistory, onEdit, onRequestDelete, onInitiateRollback, onNotifyClient }) => {
     const [isOpen, setIsOpen] = useState(false);
-
     const displayStatus = getEffectiveOrderStatus(order);
     const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500', icon: Info };
-
     const canNotify = displayStatus === ORDER_STATUS.READY_FOR_PICKUP;
     const isNotified = displayStatus === ORDER_STATUS.NOTIFIED;
     const canBePickedUp = displayStatus === ORDER_STATUS.NOTIFIED;
     const canBeArchived = displayStatus === ORDER_STATUS.PICKED_UP;
-
     const statusHistory = (order.history || []).filter(e => e.action.includes('**'));
     const canRollback = statusHistory.length >= 2 && ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
-    
     const canEdit = ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
 
     return (
@@ -330,11 +433,7 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                         {order.clientEmail && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400"/><span>{order.clientEmail}</span></div>}
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-700/60 flex items-center flex-wrap gap-x-2 text-xs text-gray-400">
-                        <User size={14} />
-                        <span>Par</span>
-                        <span className="font-semibold text-gray-300">{order.orderedBy?.name || 'N/A'}</span>
-                        <span className="hidden sm:inline">le</span>
-                        <span className="font-semibold text-gray-300">{formatOrderDate(order.orderDate)}</span>
+                        <User size={14} /><span>Par</span><span className="font-semibold text-gray-300">{order.orderedBy?.name || 'N/A'}</span><span className="hidden sm:inline">le</span><span className="font-semibold text-gray-300">{formatOrderDate(order.orderDate)}</span>
                     </div>
                 </div>
                 <div className="flex flex-col items-end gap-3">
@@ -342,68 +441,38 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                     <ChevronDown size={24} className={`text-gray-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`} />
                 </div>
             </div>
-            
             <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
                 <div className="p-4 sm:p-6 border-t border-gray-700">
                     {(order.receiptNumber || order.orderNotes) && (
                         <div className="mb-4 pb-4 border-b border-gray-700/60 space-y-3">
-                            {order.receiptNumber && (
-                                <div className="flex items-center gap-2.5 text-sm text-gray-300">
-                                    <ReceiptText size={16} className="text-gray-400 flex-shrink-0" />
-                                    <span className="font-semibold">Ticket de caisse:</span>
-                                    <span className="font-mono bg-gray-700 px-2 py-0.5 rounded-md text-white">{order.receiptNumber}</span>
-                                </div>
-                            )}
-                            {order.orderNotes && (
-                                <div className="flex items-start gap-2.5 text-sm text-gray-300">
-                                    <Info size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                                    <span className="font-semibold">Notes:</span>
-                                    <p className="text-gray-200 italic whitespace-pre-wrap flex-1">{order.orderNotes}</p>
-                                </div>
-                            )}
+                            {order.receiptNumber && ( <div className="flex items-center gap-2.5 text-sm text-gray-300"><ReceiptText size={16} className="text-gray-400 flex-shrink-0" /><span className="font-semibold">Ticket de caisse:</span><span className="font-mono bg-gray-700 px-2 py-0.5 rounded-md text-white">{order.receiptNumber}</span></div> )}
+                            {order.orderNotes && ( <div className="flex items-start gap-2.5 text-sm text-gray-300"><Info size={16} className="text-gray-400 mt-0.5 flex-shrink-0" /><span className="font-semibold">Notes:</span><p className="text-gray-200 italic whitespace-pre-wrap flex-1">{order.orderNotes}</p></div> )}
                         </div>
                     )}
-
                     <h4 className="text-md font-semibold text-gray-300 mb-3">Gestion des articles :</h4>
                     <div className="space-y-3">
                         {order.items?.map(item => (
                             <div key={item.itemId} className="bg-gray-700/50 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                                 <div className="flex-1">
                                     <p className="text-white font-medium">{item.itemName} (Qté: {item.quantity})</p>
-                                    <p className={`text-xs font-bold ${item.status === ITEM_STATUS.RECEIVED ? 'text-green-400' : item.status === ITEM_STATUS.CANCELLED ? 'text-red-400' : 'text-yellow-400'}`}>
-                                        <span>Statut : {item.status || 'N/A'}</span>
-                                    </p>
+                                    <p className={`text-xs font-bold ${item.status === ITEM_STATUS.RECEIVED ? 'text-green-400' : item.status === ITEM_STATUS.CANCELLED ? 'text-red-400' : 'text-yellow-400'}`}><span>Statut : {item.status || 'N/A'}</span></p>
                                 </div>
                                 <div className="flex gap-2 self-start sm:self-center">
-                                    {item.status === ITEM_STATUS.ORDERED && (
-                                        <>
-                                            <button onClick={() => onRequestItemStatusUpdate(order.id, item.itemId, ITEM_STATUS.RECEIVED, item.itemName)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Marquer Reçu</button>
-                                            <button onClick={() => onCancelItem(order.id, item.itemId, item.itemName)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Annuler</button>
-                                        </>
-                                    )}
+                                    {item.status === ITEM_STATUS.ORDERED && ( <> <button onClick={() => onRequestItemStatusUpdate(order.id, item.itemId, ITEM_STATUS.RECEIVED, item.itemName)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Marquer Reçu</button><button onClick={() => onCancelItem(order.id, item.itemId, item.itemName)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Annuler</button> </> )}
                                 </div>
                             </div>
                         ))}
                     </div>
-
                     <div className="mt-4 pt-4 border-t border-gray-700">
                         <h4 className="text-md font-semibold text-gray-300 mb-2">Actions sur la commande</h4>
                          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
                             {canRollback && <button onClick={() => onInitiateRollback(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Revenir en arrière</button>}
-                            
-                            {/* BOUTON POUR LA PREMIÈRE NOTIFICATION */}
                             {canNotify && <button onClick={() => onNotifyClient(order)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir le client</button>}
-                            
-                            {/* BOUTON POUR LES NOTIFICATIONS SUIVANTES */}
                             {isNotified && <button onClick={() => onNotifyClient(order)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><BellRing size={18} /> Notifier à nouveau</button>}
-                            
                             {canBePickedUp && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Marquer comme Retirée</button>}
                             {canBeArchived && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}
-                            
                             <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
-                            
                             {canEdit && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
-                            
                             {isAdmin && <button onClick={() => onRequestDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}
                         </div>
                     </div>
@@ -412,7 +481,6 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
         </div>
     );
 };
-
 
 // =================================================================
 // COMPOSANT PRINCIPAL : App
@@ -464,11 +532,7 @@ export default function App() {
             setAuth(authInstance);
             setDb(dbInstance);
             const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-                if (user) { 
-                    setCurrentUser(user);
-                    setIsAdmin(ADMIN_EMAILS.includes(user.email)); 
-                    setShowLogin(false); 
-                } 
+                if (user) { setCurrentUser(user); setIsAdmin(ADMIN_EMAILS.includes(user.email)); setShowLogin(false); } 
                 else { setCurrentUser(null); setIsAdmin(false); setShowLogin(true); }
                 setAuthReady(true);
             });
@@ -599,28 +663,22 @@ export default function App() {
 
     const handleConfirmNotification = useCallback(async ({ method, voicemail }) => {
         if (!db || !currentUser || !orderToNotify) return;
-
         const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToNotify.id);
         const userInfo = getCurrentUserInfo();
         const now = new Date().toISOString();
-
         let actionText = '';
         const note = voicemail ? "Message vocal déposé." : null;
-
         switch (method) {
             case 'sms': actionText = "Client **prévenu** par **SMS**"; break;
             case 'phone': actionText = "Client **prévenu** par **Appel**"; break;
             case 'email': default: actionText = "Client **prévenu** par **Email**"; break;
         }
-        
         const historyEvent = { timestamp: now, action: actionText, by: userInfo, ...(note && { note }) };
         const isFirstNotification = orderToNotify.currentStatus !== ORDER_STATUS.NOTIFIED;
         const updatePayload = { history: [...(orderToNotify.history || []), historyEvent] };
-
         if (isFirstNotification) {
             updatePayload.currentStatus = ORDER_STATUS.NOTIFIED;
         }
-
         try {
             await updateDoc(orderRef, updatePayload);
             showToast(`Notification par '${method.toUpperCase()}' enregistrée !`, 'success');
