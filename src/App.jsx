@@ -42,24 +42,26 @@ const ITEM_STATUS = {
     CANCELLED: 'Annulé',
 };
 
+// MODIFICATION : Nouveaux noms des statuts
 const ORDER_STATUS = {
     ORDERED: 'Commandé',
     PARTIALLY_RECEIVED: 'Partiellement Reçu',
     READY_FOR_PICKUP: 'Prêt pour retrait',
-    NOTIFIED: 'Prévenu',
-    PICKED_UP: 'Retiré',
+    NOTIFIED: 'Client Prévenu',
+    PICKED_UP: 'Retirée',
     ARCHIVED: 'Archivé',
-    COMPLETE_CANCELLED: 'Commande Annulée'
+    COMPLETE_CANCELLED: 'Annulée'
 };
 
+// MODIFICATION : Mise à jour des libellés dans la configuration d'affichage
 const ORDER_STATUSES_CONFIG = {
     [ORDER_STATUS.ORDERED]: { label: 'Commandé', colorClass: 'bg-yellow-500', icon: Package },
     [ORDER_STATUS.PARTIALLY_RECEIVED]: { label: 'Partiellement Reçu', colorClass: 'bg-blue-400', icon: FileWarning },
     [ORDER_STATUS.READY_FOR_PICKUP]: { label: 'Prêt pour retrait', colorClass: 'bg-green-500', icon: CheckCircle },
-    [ORDER_STATUS.NOTIFIED]: { label: 'Prévenu', colorClass: 'bg-blue-500', icon: Bell },
-    [ORDER_STATUS.PICKED_UP]: { label: 'Retiré', colorClass: 'bg-purple-600', icon: UserCheck },
+    [ORDER_STATUS.NOTIFIED]: { label: 'Client Prévenu', colorClass: 'bg-blue-500', icon: Bell },
+    [ORDER_STATUS.PICKED_UP]: { label: 'Retirée', colorClass: 'bg-purple-600', icon: UserCheck },
     [ORDER_STATUS.ARCHIVED]: { label: 'Archivé', colorClass: 'bg-gray-600', icon: Archive },
-    [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Commande Annulée', colorClass: 'bg-red-700', icon: XCircle }
+    [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Annulée', colorClass: 'bg-red-700', icon: XCircle }
 };
 
 const getUserDisplayName = (email) => {
@@ -195,7 +197,7 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
     const statusHistory = (order.history || []).filter(e => e.action.includes('**'));
     const canRollback = statusHistory.length >= 2 && ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
     
-    // **MODIFICATION**: Les commandes non archivées/annulées peuvent être modifiées par n'importe qui
+    // Les commandes non archivées/annulées peuvent être modifiées par n'importe qui
     const canEdit = ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
 
     return (
@@ -226,7 +228,7 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
             <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
                 <div className="p-4 sm:p-6 border-t border-gray-700">
                     
-                    {/* MODIFICATION : Section ticket de caisse et notes déplacée ici */}
+                    {/* Section ticket de caisse et notes déplacée ici */}
                     {(order.receiptNumber || order.orderNotes) && (
                         <div className="mb-4 pb-4 border-b border-gray-700/60 space-y-3">
                             {order.receiptNumber && (
@@ -273,12 +275,12 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
                             {canRollback && <button onClick={() => onInitiateRollback(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Revenir en arrière</button>}
                             {canNotify && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.NOTIFIED)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir le client</button>}
-                            {canBePickedUp && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Marquer comme Retiré</button>}
+                            {canBePickedUp && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Marquer comme Retirée</button>}
                             {canBeArchived && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}
                             
                             <button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>
                             
-                            {/* MODIFICATION : Le bouton Modifier est visible pour tous si la commande est modifiable */}
+                            {/* Le bouton Modifier est visible pour tous si la commande est modifiable */}
                             {canEdit && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}
                             
                             {/* Le bouton Supprimer reste réservé aux admins */}
@@ -408,10 +410,8 @@ export default function App() {
             if (editingOrder) {
                 const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id);
                 const existingItems = editingOrder.items || [];
-                // Compare new items with existing ones based on name to preserve status of old items
                 const updatedItems = orderData.items.map((newItem) => {
                     const existing = existingItems.find(e => e.itemName === newItem.itemName);
-                    // If item existed, keep its properties, otherwise create a new item object
                     return existing ? { ...existing, quantity: newItem.quantity } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED };
                 });
 
@@ -470,15 +470,18 @@ export default function App() {
         if (newStatus === ORDER_STATUS.PICKED_UP) actionText = "Commande **retirée** par le client";
         if (newStatus === ORDER_STATUS.ARCHIVED) actionText = "Commande **archivée**";
         const historyEvent = { timestamp: now, action: actionText, by: userInfo };
-        await updateDoc(orderRef, { currentStatus: newStatus, history: [...(orders.find(o => o.id === orderId)?.history || []), historyEvent] });
-        showToast(`Commande mise à jour !`, 'success');
+        const orderToUpdate = orders.find(o => o.id === orderId);
+        if(orderToUpdate) {
+            await updateDoc(orderRef, { currentStatus: newStatus, history: [...(orderToUpdate.history || []), historyEvent] });
+            showToast(`Commande mise à jour !`, 'success');
+        }
     }, [db, currentUser, orders, showToast, getCurrentUserInfo]);
 
     const handleConfirmDelete = useCallback(async (orderId) => { 
         if (!db || !isAdmin || !orderId) { showToast("Action non autorisée.", 'error'); return; } 
         setIsSaving(true); 
         try { await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId)); showToast("Commande supprimée.", 'success'); } 
-        catch (e) { showToast("Échec de la suppression.", 'error'); } 
+        catch (e) { console.error(e); showToast("Échec de la suppression.", 'error'); } 
         finally { setIsSaving(false); } 
     }, [db, isAdmin, showToast]);
 
@@ -512,7 +515,7 @@ export default function App() {
     const handleRequestOrderStatusUpdate = (order, newStatus) => {
         let message = `Voulez-vous vraiment changer le statut à '${newStatus}' ?`, color = 'bg-blue-600';
         if (newStatus === ORDER_STATUS.NOTIFIED) { message = "Confirmez-vous avoir prévenu le client ?"; color = 'bg-blue-600'; }
-        if (newStatus === ORDER_STATUS.PICKED_UP) { message = "Le client a-t-il bien retiré sa commande ?"; color = 'bg-purple-600'; }
+        if (newStatus === ORDER_STATUS.PICKED_UP) { message = `La commande a-t-elle bien été marquée comme ${ORDER_STATUS.PICKED_UP} ?`; color = 'bg-purple-600'; }
         if (newStatus === ORDER_STATUS.ARCHIVED) { message = "Archiver cette commande ? Elle n'apparaîtra plus dans la liste active."; color = 'bg-gray-600'; }
         setConfirmation({ isOpen: true, message, onConfirm: () => {handleUpdateOrderStatus(order.id, newStatus); closeConfirmation(); }, confirmColor: color });
     };
