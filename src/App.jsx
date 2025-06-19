@@ -45,12 +45,12 @@ const ORDER_STATUS = {
 };
 
 const ORDER_STATUSES_CONFIG = {
-    [ORDER_STATUS.ORDERED]:            { label: 'Commandé',            colorClass: 'bg-yellow-500', icon: Package },
+    [ORDER_STATUS.ORDERED]:               { label: 'Commandé',            colorClass: 'bg-yellow-500', icon: Package },
     [ORDER_STATUS.PARTIALLY_RECEIVED]: { label: 'Partiellement Reçu',    colorClass: 'bg-blue-400',   icon: FileWarning },
     [ORDER_STATUS.READY_FOR_PICKUP]:   { label: 'Prêt pour retrait',   colorClass: 'bg-green-500',  icon: CheckCircle },
-    [ORDER_STATUS.NOTIFIED]:           { label: 'Prévenu',             colorClass: 'bg-blue-500',   icon: Bell },
-    [ORDER_STATUS.PICKED_UP]:          { label: 'Retiré',              colorClass: 'bg-purple-600', icon: UserCheck },
-    [ORDER_STATUS.ARCHIVED]:           { label: 'Archivé',             colorClass: 'bg-gray-600',   icon: Archive },
+    [ORDER_STATUS.NOTIFIED]:               { label: 'Prévenu',             colorClass: 'bg-blue-500',   icon: Bell },
+    [ORDER_STATUS.PICKED_UP]:              { label: 'Retiré',              colorClass: 'bg-purple-600', icon: UserCheck },
+    [ORDER_STATUS.ARCHIVED]:               { label: 'Archivé',             colorClass: 'bg-gray-600',   icon: Archive },
     [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Commande Annulée',    colorClass: 'bg-red-700',    icon: XCircle }
 };
 
@@ -86,6 +86,27 @@ const getDerivedOrderStatus = (order) => {
     
     return ORDER_STATUS.ORDERED;
 };
+
+// NOUVELLE FONCTION AJOUTÉE POUR CORRIGER LE FILTRE
+const getEffectiveOrderStatus = (order) => {
+    if (!order) return null;
+
+    // Les statuts "avancés" (Prévenu, Retiré...) ont la priorité sur le statut calculé.
+    const advancedStatuses = [
+        ORDER_STATUS.NOTIFIED,
+        ORDER_STATUS.PICKED_UP,
+        ORDER_STATUS.ARCHIVED,
+        ORDER_STATUS.COMPLETE_CANCELLED
+    ];
+
+    if (advancedStatuses.includes(order.currentStatus)) {
+        return order.currentStatus;
+    }
+
+    // Sinon, on retourne le statut calculé à partir des articles.
+    return getDerivedOrderStatus(order);
+};
+
 
 const getIconForHistoryAction = (action) => {
     if (!action) return History;
@@ -161,6 +182,32 @@ const OrderHistoryModal = ({ order, onClose }) => {
         </div>
     );
 };
+const LoginForm = ({ onLogin, error }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); };
+    return (
+        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0">
+            <div className="text-center mb-6">
+                <LogIn className="mx-auto h-12 w-12 text-blue-400" />
+                <h2 className="mt-4 text-2xl font-bold text-white">Connexion</h2>
+                <p className="text-gray-400 mt-1">Accès réservé aux conseillers.</p>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Adresse Email</label>
+                    <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                </div>
+                <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label>
+                    <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" />
+                </div>
+                {error && (<p className="text-red-400 text-sm text-center">{error}</p>)}
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button>
+            </form>
+        </div>
+    );
+};
 
 // =================================================================
 // COMPOSANT OrderCard (Corrigé)
@@ -168,16 +215,9 @@ const OrderHistoryModal = ({ order, onClose }) => {
 const OrderCard = ({ order, onUpdateItemStatus, onCancelItem, onUpdateOrderStatus, isAdmin, onShowHistory, onEdit, onDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
 
-    const derivedStatus = getDerivedOrderStatus(order);
+    // On utilise la nouvelle fonction pour obtenir le statut correct à afficher
+    const displayStatus = getEffectiveOrderStatus(order);
     
-    // Le statut affiché est le statut enregistré (ex: Prévenu), SAUF si c'est un statut initial, 
-    // auquel cas on affiche le statut calculé (ex: Partiellement Reçu).
-    const displayStatus = [
-        ORDER_STATUS.ORDERED, 
-        ORDER_STATUS.PARTIALLY_RECEIVED, 
-        ORDER_STATUS.READY_FOR_PICKUP
-    ].includes(order.currentStatus) ? derivedStatus : order.currentStatus;
-
     const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500' };
 
     const canNotify = displayStatus === ORDER_STATUS.READY_FOR_PICKUP;
@@ -340,7 +380,11 @@ export default function App() {
             currentOrders = currentOrders.filter(order => finalStatuses.includes(order.currentStatus));
         }
 
-        if (selectedStatusFilter !== 'All' && viewMode === 'active') { currentOrders = currentOrders.filter(order => getDerivedOrderStatus(order) === selectedStatusFilter); }
+        // LIGNE CORRIGÉE POUR UTILISER LA NOUVELLE FONCTION
+        if (selectedStatusFilter !== 'All' && viewMode === 'active') { 
+            currentOrders = currentOrders.filter(order => getEffectiveOrderStatus(order) === selectedStatusFilter); 
+        }
+
         if (selectedAdvisorFilter !== 'All') { currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase()); }
         if (searchTerm.trim()) { const lowerCaseSearchTerm = searchTerm.trim().toLowerCase(); currentOrders = currentOrders.filter(order => ((order.clientFirstName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientLastName || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientEmail || '').toLowerCase().includes(lowerCaseSearchTerm)) || ((order.clientPhone || '').toLowerCase().includes(lowerCaseSearchTerm)) || (order.items?.some(item => (item.itemName || '').toLowerCase().includes(lowerCaseSearchTerm))) || ((order.receiptNumber || '').toLowerCase().includes(lowerCaseSearchTerm)) ); }
         return currentOrders;
@@ -493,9 +537,21 @@ export default function App() {
                          <div className="relative flex-grow">
                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
                          </div>
-                         <div className="relative"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}><option value="All">Tous les statuts</option>{Object.values(ORDER_STATUSES_CONFIG).filter(s => ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED, ORDER_STATUS.PICKED_UP, ORDER_STATUS.NOTIFIED].includes(s.label)).map(status => (<option key={status.label} value={status.label}>{status.label}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                         <div className="relative">
+                            <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}>
+                                {/* LIGNE CORRIGÉE POUR LE MENU DÉROULANT */}
+                                <option value="All">Tous les statuts</option>
+                                {Object.values(ORDER_STATUSES_CONFIG)
+                                    .filter(s => ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(s.label))
+                                    .map(status => (
+                                        <option key={status.label} value={status.label}>{status.label}</option>
+                                    ))
+                                }
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
                          <div className="relative"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                    </div>
+                     </div>
                 </div>
 
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
