@@ -11,10 +11,10 @@ import {
     MessageSquareText, PhoneCall, BellRing, Clock, CalendarCheck2, FileUp, FilePenLine
 } from 'lucide-react';
 
-// Importation de la bibliothèque PDF
-import * as pdfjs from 'pdfjs-dist';
-// CONFIGURATION CORRIGÉE ET FIABLE DU WORKER
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+// Importation de la bibliothèque PDF avec la méthode finale pour Vite
+import * as pdfjs from 'pdfjs-dist/build/pdf';
+import PdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+pdfjs.GlobalWorkerOptions.workerSrc = PdfjsWorker;
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
@@ -298,6 +298,11 @@ export default function App() {
         setOpenCardId(prevOpenCardId => (prevOpenCardId === orderId ? null : orderId));
     };
 
+    const handleEditOrder = useCallback((order) => { 
+        setEditingOrder(order); 
+        setShowOrderForm(true); 
+    }, []);
+
     const handleManualCreate = () => {
         setShowCreationChoiceModal(false);
         setEditingOrder(null);
@@ -308,11 +313,6 @@ export default function App() {
         setShowCreationChoiceModal(false);
         fileInputRef.current.click();
     };
-
-    const handleEditOrder = useCallback((order) => { 
-        setEditingOrder(order); 
-        setShowOrderForm(true); 
-    }, []);
 
     const parseOrderFromText = useCallback((text) => {
         console.log("Texte brut extrait du PDF pour débogage :\n", text);
