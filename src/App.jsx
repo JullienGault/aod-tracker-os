@@ -321,8 +321,15 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
-                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                    fullText += textContent.items.map(item => item.str).join(' ');
                 }
+
+                // ==========================================================
+                // === L'ESPION EST ICI POUR LE DÉBOGAGE ===
+                console.log("--- TEXTE BRUT FINAL EXTRAIT DU PDF ---");
+                console.log(fullText);
+                console.log("--- FIN DU TEXTE ---");
+                // ==========================================================
                 
                 const data = parseOrderText(fullText);
 
