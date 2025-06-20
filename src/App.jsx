@@ -188,8 +188,7 @@ const formatOrderDate = (isoString) => {
 };
 
 /**
- * VERSION FINALE : Gère les commandes à un ou plusieurs articles.
- * Analyse le texte brut d'un récapitulatif de commande pour en extraire les informations clés.
+ * VERSION FINALE ROBUSTE : Gère le texte "aplati" sur une seule ligne.
  * @param {string} text - Le texte extrait du PDF.
  * @returns {object} Un objet contenant les données structurées de la commande.
  */
@@ -204,68 +203,36 @@ const parseOrderText = (text) => {
         orderNotes: ''
     };
 
-    // --- LOGIQUE CLIENT & REÇU (inchangée) ---
-    const clientMatch = text.match(
-        /Informations client\n([\s\S]*?)\n([\w.-]+@[\w.-]+)\n(\d+)/
-    );
+    // Nettoie le texte en remplaçant les espaces multiples par un seul
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+
+    // N° de récapitulatif (le plus fiable est en haut)
+    const receiptMatch = cleanText.match(/RÉCAPITULATIF DE COMMANDE \d{2}\/\d{2}\/\d{4} (\w+)/);
+    if (receiptMatch) {
+        parsedData.receiptNumber = receiptMatch[1];
+    }
+
+    // Informations Client
+    const clientMatch = cleanText.match(/Informations client (.+?) ([\w.-]+@[\w.-]+) (\d{10})/);
     if (clientMatch) {
         const fullName = clientMatch[1].trim();
-        const nameParts = fullName.split(/\s+/);
+        const nameParts = fullName.split(' ');
         parsedData.clientFirstName = nameParts[0] || '';
         parsedData.clientLastName = nameParts.slice(1).join(' ') || '';
-        parsedData.clientEmail = clientMatch[2].trim();
-        parsedData.clientPhone = clientMatch[3].trim();
+        parsedData.clientEmail = clientMatch[2];
+        parsedData.clientPhone = clientMatch[3];
     }
 
-    const receiptMatch = text.match(/N° de récapitulatif de commande\s+(\w+)/);
-    if (receiptMatch) {
-        parsedData.receiptNumber = receiptMatch[1].trim();
-    }
+    // Articles (logique globale avec une expression régulière complexe)
+    // Elle cherche le motif [Référence] [Nom] [Taxe] [Prix] [Qté] [Total]
+    const itemRegex = /([A-Z0-9-]+\s*(?:5G)?)\s(.*?)\s(\d{1,2}\s?%)\s([\d,]+\s€)\s(\d+)\s([\d,]+\s€)/g;
 
-    // --- NOUVELLE LOGIQUE PUISSANTE POUR PLUSIEURS ARTICLES ---
-
-    // 1. Isoler la section complète des articles, de "Produit" à "Détail des taxes"
-    const itemsSectionMatch = text.match(/Produit([\s\S]+?)Détail des taxes/);
-    if (itemsSectionMatch) {
-        const itemsSection = itemsSectionMatch[1];
-
-        // 2. Extraire le bloc de noms et les séparer par les sauts de ligne
-        const namesBlockMatch = itemsSection.match(/([\s\S]+?)Taux de taxe/);
-        if (namesBlockMatch) {
-            const productNames = namesBlockMatch[1]
-                .trim()
-                .split('\n')
-                .map(name => name.trim().replace(/\s+/g, ' ')) // Nettoie chaque nom
-                .filter(name => name); // Enlève les lignes vides
-
-            // 3. Extraire toutes les quantités avec une expression régulière "globale"
-            // Cherche soit "Quantité 1" soit "€ 1" (pour les lignes suivantes)
-            const quantityRegex = /(?:Quantité|€)\s+(\d+)\s+/g;
-            const quantities = [...itemsSection.matchAll(quantityRegex)].map(match => parseInt(match[1], 10));
-
-            // 4. Combiner les listes de noms et de quantités
-            const numItems = Math.min(productNames.length, quantities.length);
-            for (let i = 0; i < numItems; i++) {
-                if (productNames[i] && quantities[i]) {
-                    parsedData.items.push({
-                        itemName: productNames[i],
-                        quantity: quantities[i],
-                    });
-                }
-            }
-        }
-    }
-    
-    // Si la nouvelle logique n'a rien trouvé, on tente l'ancienne (pour la rétrocompatibilité)
-    if (parsedData.items.length === 0) {
-        const itemMatch = text.match(/Quantité\s+([\s\S]+?)\s+(\d+)\s+Total/);
-        if (itemMatch) {
-            const itemName = itemMatch[1].trim().replace(/\s*\n\s*/g, ' ');
-            const quantity = parseInt(itemMatch[2].trim(), 10);
-            if (itemName && !isNaN(quantity)) {
-                parsedData.items.push({ itemName: itemName, quantity: quantity });
-            }
-        }
+    const itemMatches = [...cleanText.matchAll(itemRegex)];
+    for (const match of itemMatches) {
+        parsedData.items.push({
+            itemName: match[2].trim(), // Groupe 2 : le nom du produit
+            quantity: parseInt(match[5], 10) // Groupe 5 : la quantité
+        });
     }
 
     return parsedData;
@@ -323,13 +290,6 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
                     const textContent = await page.getTextContent();
                     fullText += textContent.items.map(item => item.str).join(' ');
                 }
-
-                // ==========================================================
-                // === L'ESPION EST ICI POUR LE DÉBOGAGE ===
-                console.log("--- TEXTE BRUT FINAL EXTRAIT DU PDF ---");
-                console.log(fullText);
-                console.log("--- FIN DU TEXTE ---");
-                // ==========================================================
                 
                 const data = parseOrderText(fullText);
 
