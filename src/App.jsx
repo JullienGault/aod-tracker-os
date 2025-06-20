@@ -14,12 +14,13 @@ import {
 // Importation de la bibliothèque PDF
 import * as pdfjs from 'pdfjs-dist/build/pdf';
 
-// CONFIGURATION FINALE ET INFALLIBLE VIA CDN
+// CONFIGURATION FINALE VIA UNE URL CDN DIRECTE ET VÉRIFIÉE
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
 // =================================================================
+
 const firebaseConfig = {
     apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
     authDomain: "aod-tracker-os.firebaseapp.com",
