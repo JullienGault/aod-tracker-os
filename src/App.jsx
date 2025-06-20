@@ -187,6 +187,12 @@ const formatOrderDate = (isoString) => {
     }
 };
 
+/**
+ * VERSION FINALE : Fonction d'analyse pour le PDF Orange Store (Format 20/06/2025)
+ * Analyse le texte brut d'un récapitulatif de commande pour en extraire les informations clés.
+ * @param {string} text - Le texte extrait du PDF.
+ * @returns {object} Un objet contenant les données structurées de la commande.
+ */
 const parseOrderText = (text) => {
     const parsedData = {
         clientFirstName: '',
@@ -197,40 +203,45 @@ const parseOrderText = (text) => {
         items: [],
         orderNotes: ''
     };
-    const receiptMatch = text.match(/N° de récapitulatif de commande\s*\n(\w+)/i);
+
+    // --- LOGIQUE pour les informations client (sur 3 lignes) ---
+    const clientMatch = text.match(
+        /Informations client\n([\s\S]*?)\n([\w.-]+@[\w.-]+)\n(\d+)/
+    );
+    if (clientMatch) {
+        const fullName = clientMatch[1].trim();
+        const nameParts = fullName.split(/\s+/);
+        parsedData.clientFirstName = nameParts[0] || '';
+        parsedData.clientLastName = nameParts.slice(1).join(' ') || '';
+        parsedData.clientEmail = clientMatch[2].trim();
+        parsedData.clientPhone = clientMatch[3].trim();
+    }
+
+    // --- LOGIQUE pour le N° de récapitulatif (plus robuste) ---
+    const receiptMatch = text.match(/N° de récapitulatif de commande\s+(\w+)/);
     if (receiptMatch) {
         parsedData.receiptNumber = receiptMatch[1].trim();
     }
-    const clientInfoMatch = text.match(/Informations client\n(.+)\n(\d+)/i);
-    if (clientInfoMatch) {
-        const infoLine = clientInfoMatch[1].trim();
-        const phone = clientInfoMatch[2].trim();
-        const emailRegex = /([\w.-]+@[\w.-]+\.\w+)/;
-        const emailMatch = infoLine.match(emailRegex);
-        if (emailMatch) {
-            parsedData.clientEmail = emailMatch[0];
-            const fullName = infoLine.replace(emailMatch[0], '').trim();
-            const nameParts = fullName.split(/\s+/);
-            parsedData.clientFirstName = nameParts[0] || '';
-            parsedData.clientLastName = nameParts.slice(1).join(' ') || '';
-        }
-        parsedData.clientPhone = phone;
-    }
-    const items = [];
-    const productMatch = text.match(/Produit\s*\n([\s\S]*?)\s*\nTaux de/i);
-    const quantityMatch = text.match(/Quantité\s*\n([\s\S]*?)\s*Total\s*\n\s*\(HT\)/i);
-    if (productMatch && quantityMatch) {
-        const itemName = productMatch[1].trim().replace(/\s*\n\s*/g, ' ');
-        const quantity = parseInt(quantityMatch[1].trim(), 10);
+
+    // --- LOGIQUE pour les articles (format horizontal) ---
+    const itemMatch = text.match(
+        /Quantité\s+([\s\S]+?)\s+(\d+)\s+Total/
+    );
+    if (itemMatch) {
+        const itemName = itemMatch[1].trim().replace(/\s*\n\s*/g, ' '); // Nettoie le nom de l'article
+        const quantity = parseInt(itemMatch[2].trim(), 10);
+        
         if (itemName && !isNaN(quantity)) {
-            items.push({ itemName: itemName, quantity: quantity });
+            parsedData.items.push({
+                itemName: itemName,
+                quantity: quantity,
+            });
         }
     }
-    if (items.length > 0) {
-        parsedData.items = items;
-    }
+
     return parsedData;
 };
+
 
 // =================================================================
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
@@ -246,7 +257,6 @@ const CancellationModal = ({ onConfirm, onCancel, title, message }) => { const [
 const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => { const [reason, setReason] = useState(''); const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison (obligatoire)</label><textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button><button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button></div></div></div> ); };
 const LoginForm = ({ onLogin, error }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center mb-6"><LogIn className="mx-auto h-12 w-12 text-blue-400" /><h2 className="mt-4 text-2xl font-bold text-white">Connexion</h2><p className="text-gray-400 mt-1">Accès réservé.</p></div><form onSubmit={handleSubmit} className="space-y-6"><div><label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Adresse Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && (<p className="text-red-400 text-sm text-center">{error}</p>)}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div> ); };
 
-// === COMPOSANT MIS A JOUR ===
 const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, showToast }) => {
     const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
     const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
