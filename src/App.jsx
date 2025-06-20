@@ -15,7 +15,7 @@ import {
 import * as pdfjs from 'pdfjs-dist/build/pdf';
 
 // CONFIGURATION FINALE VIA UNE URL CDN DIRECTE ET VÉRIFIÉE
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.js'';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
