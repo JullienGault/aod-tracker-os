@@ -177,9 +177,8 @@ const formatOrderDate = (isoString) => {
     }
 };
 
-
 /**
- * AJOUT : Fonction d'analyse pour le PDF Orange Store
+ * VERSION MISE À JOUR : Fonction d'analyse pour le PDF Orange Store
  * Analyse le texte brut d'un récapitulatif de commande pour en extraire les informations clés.
  * @param {string} text - Le texte copié depuis le PDF.
  * @returns {object} Un objet contenant les données structurées de la commande.
@@ -190,48 +189,64 @@ const parseOrderText = (text) => {
         clientLastName: '',
         clientEmail: '',
         clientPhone: '',
-        receiptNumber: '', // N° de récapitulatif de commande
+        receiptNumber: '',
         items: [],
         orderNotes: ''
     };
 
-    // --- Extraction des informations client ---
-    const clientInfoMatch = text.match(/Informations client\s*\n(.+)\n(.+@.+)\n(\d+)/i);
-    if (clientInfoMatch) {
-        const fullName = clientInfoMatch[1].trim().split(/\s+/);
-        parsedData.clientFirstName = fullName.length > 0 ? fullName[0] : '';
-        parsedData.clientLastName = fullName.length > 1 ? fullName.slice(1).join(' ').toUpperCase() : '';
-        parsedData.clientEmail = clientInfoMatch[2].trim();
-        parsedData.clientPhone = clientInfoMatch[3].trim();
-    }
-    
-    // --- Extraction du N° de récapitulatif ---
+    // --- Extraction du N° de récapitulatif (plus fiable) ---
     const receiptMatch = text.match(/N° de récapitulatif de commande\s*\n(\w+)/i);
     if (receiptMatch) {
         parsedData.receiptNumber = receiptMatch[1].trim();
     }
 
-    // --- Extraction des articles ---
-    const itemsSectionMatch = text.match(/Total \(HT\)([\s\S]+?)Détail des taxes/i);
-    if (itemsSectionMatch) {
-        const itemsText = itemsSectionMatch[1];
-        const itemRegex = /([A-Z0-9]+\s[A-Z0-9]+)\s+([\s\S]+?)\s+(\d+)\s+([\d,]+\s*€)/g;
-        
-        let match;
-        const items = [];
-        while ((match = itemRegex.exec(itemsText)) !== null) {
-            const itemName = match[2].trim().replace(/\n/g, ' ');
-            const quantity = parseInt(match[3], 10);
-            
+    // --- Extraction des informations client (nouvelle logique) ---
+    const clientInfoMatch = text.match(/Informations client\n(.+)\n(\d+)/i);
+    if (clientInfoMatch) {
+        const infoLine = clientInfoMatch[1].trim(); // Ex: "liliane labbaye lililabbaye@orange.fr"
+        const phone = clientInfoMatch[2].trim();    // Ex: "0671316116"
+
+        const emailRegex = /([\w.-]+@[\w.-]+\.\w+)/;
+        const emailMatch = infoLine.match(emailRegex);
+
+        if (emailMatch) {
+            parsedData.clientEmail = emailMatch[0];
+            // Ce qui n'est pas l'email est le nom complet
+            const fullName = infoLine.replace(emailMatch[0], '').trim();
+            const nameParts = fullName.split(/\s+/);
+            parsedData.clientFirstName = nameParts[0] || '';
+            parsedData.clientLastName = nameParts.slice(1).join(' ') || '';
+        }
+
+        parsedData.clientPhone = phone;
+    }
+
+    // --- Extraction des articles (nouvelle logique verticale) ---
+    const items = [];
+    
+    // On cherche le nom du produit entre "Produit" et "Taux de taxe"
+    const productMatch = text.match(/Produit\s*\n([\s\S]*?)\s*\nTaux de/i);
+    
+    // On cherche la quantité entre "Quantité" et "Total (HT)"
+    // On ajuste pour être plus flexible avec les sauts de ligne
+    const quantityMatch = text.match(/Quantité\s*\n([\s\S]*?)\s*Total\s*\n\s*\(HT\)/i);
+    
+    if (productMatch && quantityMatch) {
+        // Nettoie le nom du produit (enlève les sauts de ligne et espaces superflus)
+        const itemName = productMatch[1].trim().replace(/\s*\n\s*/g, ' ');
+        // Nettoie la quantité
+        const quantity = parseInt(quantityMatch[1].trim(), 10);
+
+        if (itemName && !isNaN(quantity)) {
             items.push({
                 itemName: itemName,
-                quantity: quantity || 1,
+                quantity: quantity,
             });
         }
-        
-        if (items.length > 0) {
-            parsedData.items = items;
-        }
+    }
+    
+    if (items.length > 0) {
+        parsedData.items = items;
     }
 
     return parsedData;
@@ -252,8 +267,8 @@ const CancellationModal = ({ onConfirm, onCancel, title, message }) => { const [
 const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => { const [reason, setReason] = useState(''); const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison (obligatoire)</label><textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button><button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button></div></div></div> ); };
 const LoginForm = ({ onLogin, error }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center mb-6"><LogIn className="mx-auto h-12 w-12 text-blue-400" /><h2 className="mt-4 text-2xl font-bold text-white">Connexion</h2><p className="text-gray-400 mt-1">Accès réservé.</p></div><form onSubmit={handleSubmit} className="space-y-6"><div><label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Adresse Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && (<p className="text-red-400 text-sm text-center">{error}</p>)}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div> ); };
 
-// MODIFICATION : Le composant OrderForm est mis à jour
-const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers }) => {
+// Le composant OrderForm est mis à jour pour utiliser la nouvelle logique
+const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, showToast }) => {
     const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
     const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
     const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '');
@@ -264,10 +279,8 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers }
     const [formError, setFormError] = useState(null);
     const [ownerEmail, setOwnerEmail] = useState(initialData?.orderedBy?.email || '');
 
-    // AJOUT : État pour le texte à analyser
     const [textToParse, setTextToParse] = useState('');
 
-    // AJOUT : Gestionnaire pour analyser le texte et remplir le formulaire
     const handleParseAndFill = () => {
         if (!textToParse) {
             setFormError("Veuillez coller le texte du PDF dans la zone dédiée.");
@@ -276,6 +289,14 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers }
         setFormError(null);
         
         const data = parseOrderText(textToParse);
+
+        // Vérifie si des données ont été trouvées avant de notifier
+        const dataFound = Object.values(data).some(value => (Array.isArray(value) ? value.length > 0 : value));
+
+        if (!dataFound) {
+            showToast("Aucune information pertinente trouvée dans le texte.", "error");
+            return;
+        }
 
         if (data.clientFirstName) setClientFirstName(data.clientFirstName.charAt(0).toUpperCase() + data.clientFirstName.slice(1).toLowerCase());
         if (data.clientLastName) setClientLastName(data.clientLastName.toUpperCase());
@@ -290,7 +311,6 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers }
             setItems([{ itemName: '', quantity: '' }]);
         }
         
-        // Affiche une confirmation à l'utilisateur
         showToast("Formulaire pré-rempli avec succès.", "success");
     };
 
@@ -349,7 +369,6 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers }
                 <button onClick={onClose} aria-label="Fermer" className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24} /></button>
                 <h2 className="text-2xl font-bold text-white mb-6 text-center">{initialData ? 'Modifier la commande' : 'Nouvelle Commande'}</h2>
                 
-                {/* AJOUT : Section pour le collage et l'analyse du PDF */}
                 {!initialData && (
                     <div className="mb-6 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
                         <h3 className="text-lg font-semibold text-blue-300 mb-3 flex items-center gap-2">
@@ -364,7 +383,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers }
                             value={textToParse}
                             onChange={(e) => setTextToParse(e.target.value)}
                             className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm"
-                            placeholder="Exemple : RÉCAPITULATIF DE COMMANDE..."
+                            placeholder="Copiez l'intégralité du texte de la commande ici..."
                         ></textarea>
                         <button
                             type="button"
@@ -375,7 +394,6 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers }
                         </button>
                     </div>
                 )}
-                 {/* FIN DE L'AJOUT */}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {isAdmin && initialData && (<div><h3 className="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2"><UserCheck size={20} /> Zone Administrateur</h3><div className="space-y-4 bg-gray-900/50 p-4 rounded-lg"><div><label htmlFor="owner" className="block text-sm font-medium text-gray-300 mb-2">Conseiller associé</label><select id="owner" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg">{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select></div></div></div>)}
@@ -551,7 +569,7 @@ export default function App() {
             {confirmation.isOpen && ( <ConfirmationModal message={confirmation.message} onConfirm={confirmation.onConfirm} onCancel={closeConfirmation} confirmColor={confirmation.confirmColor} /> )}
             {showItemCancelModal && ( <CancellationModal title={`Annuler l'article "${itemToCancel?.itemName}"`} message="Indiquer la raison de cette annulation." onConfirm={handleConfirmCancelItem} onCancel={() => setShowItemCancelModal(false)} /> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
-            {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} isAdmin={isAdmin} allUsers={allUsers} /> )}
+            {showOrderForm && ( <OrderForm onSave={handleSaveOrder} initialData={editingOrder} isSaving={isSaving} onClose={() => { setShowOrderForm(false); setEditingOrder(null); }} isAdmin={isAdmin} allUsers={allUsers} showToast={showToast} /> )}
             {showRollbackModal && orderToRollback && ( <RollbackStatusModal title="Annuler le dernier changement ?" message="La commande reviendra à son état précédent. Veuillez justifier." onConfirm={handleConfirmRollback} onCancel={() => { setShowRollbackModal(false); setOrderToRollback(null); }} /> )}
             {showNotificationModal && orderToNotify && ( <NotificationModal onConfirm={handleConfirmNotification} onCancel={() => { setShowNotificationModal(false); setOrderToNotify(null); }} /> )}
             <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6">
