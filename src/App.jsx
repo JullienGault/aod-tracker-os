@@ -8,9 +8,12 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 // Importations des icônes Lucide React
 import {
     PlusCircle, Package, CheckCircle, Bell, History, User, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, Archive, Undo2, List, XCircle, FileWarning,
-    MessageSquareText, PhoneCall, BellRing, Clock, CalendarCheck2
+    MessageSquareText, PhoneCall, BellRing, Clock, CalendarCheck2, FileUp
 } from 'lucide-react';
 
+// Importation de la bibliothèque PDF
+import * as pdfjs from 'pdfjs-dist/build/pdf';
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
@@ -225,6 +228,7 @@ export default function App() {
     const [viewMode, setViewMode] = useState('active');
     const [toast, setToast] = useState(null);
     const [openCardId, setOpenCardId] = useState(null);
+    const fileInputRef = useRef(null);
 
     useEffect(() => { document.title = "AOD Tracker 2.0"; }, []);
 
@@ -294,6 +298,70 @@ export default function App() {
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) return; try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
     const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: ADMIN_EMAILS.includes(currentUser.email) ? 'admin' : 'counselor' }; }, [currentUser]);
+    
+    const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
+
+    const parseOrderFromText = useCallback((text) => {
+        console.log("Texte brut extrait du PDF pour débogage :\n", text);
+        const orderData = { clientFirstName: '', clientLastName: '', clientEmail: '', clientPhone: '', receiptNumber: '', items: [] };
+        const refMatch = text.match(/N° de récapitulatif de commande\s+([A-Z0-9]+)/i);
+        if (refMatch) { orderData.receiptNumber = refMatch[1]; }
+        const clientInfoMatch = text.match(/Informations client\s+([\s\S]+?)N° de récapitulatif/i);
+        if (clientInfoMatch) {
+            const clientBlock = clientInfoMatch[1];
+            const nameMatch = clientBlock.match(/([a-zA-Z\s]+)/);
+            if (nameMatch) {
+                const nameParts = nameMatch[1].trim().split(/\s+/);
+                orderData.clientLastName = nameParts.pop() || ''; // Le dernier mot est le nom
+                orderData.clientFirstName = nameParts.join(' ') || ''; // Le reste est le prénom
+            }
+            const emailMatch = clientBlock.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+            if (emailMatch) orderData.clientEmail = emailMatch[1];
+            const phoneMatch = clientBlock.match(/(\d{10})/);
+            if (phoneMatch) orderData.clientPhone = phoneMatch[1];
+        }
+        const itemsSectionMatch = text.match(/Total \(HT\)([\s\S]+?)Détail des taxes/i);
+        if (itemsSectionMatch) {
+            const itemsText = itemsSectionMatch[1];
+            const itemRegex = /[A-Z0-9]+\s+H\d{2}\s+(.+?)\s+\d{1,2}\s*%\s+[\d,]+\s*€\s+(\d+)\s+[\d,]+\s*€/gm;
+            let match;
+            while ((match = itemRegex.exec(itemsText)) !== null) {
+                orderData.items.push({ itemName: match[1].trim().replace(/\s+/g, ' '), quantity: parseInt(match[2], 10) });
+            }
+        }
+        if (orderData.items.length === 0) { orderData.items.push({ itemName: '', quantity: 1 }); }
+        if(orderData.clientFirstName) orderData.clientFirstName = orderData.clientFirstName.charAt(0).toUpperCase() + orderData.clientFirstName.slice(1).toLowerCase();
+        if(orderData.clientLastName) orderData.clientLastName = orderData.clientLastName.toUpperCase();
+        return orderData;
+    }, []);
+
+    const handlePdfFileChange = useCallback(async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        showToast("Lecture du PDF en cours...", "info");
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const pdf = await pdfjs.getDocument(data).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                }
+                const parsedData = parseOrderFromText(fullText);
+                handleEditOrder(parsedData); 
+                showToast("Données importées ! Veuillez vérifier.", "success");
+            } catch (error) {
+                console.error("Erreur PDF:", error);
+                showToast("Impossible de lire ce PDF.", "error");
+            }
+        };
+        reader.readAsArrayBuffer(file);
+        event.target.value = null; 
+    }, [showToast, handleEditOrder, parseOrderFromText]);
+
     const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) return; setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id); const itemsToUpdate = editingOrder.items || []; const updatedItems = orderData.items.map((newItem) => { const existing = itemsToUpdate.find(e => e.itemName === newItem.itemName); return existing ? { ...existing, quantity: newItem.quantity } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED }; }); const updatePayload = { clientFirstName: orderData.clientFirstName, clientLastName: orderData.clientLastName, clientEmail: orderData.clientEmail, clientPhone: orderData.clientPhone, receiptNumber: orderData.receiptNumber, orderNotes: orderData.orderNotes, items: updatedItems }; const historyEvents = [...(editingOrder.history || [])]; const originalOwnerEmail = editingOrder.orderedBy?.email; const newOwnerEmail = orderData.ownerEmail; if (isAdmin && originalOwnerEmail !== newOwnerEmail) { const newOwner = allUsers.find(u => u.email === newOwnerEmail); if (newOwner) { updatePayload.orderedBy = { email: newOwner.email, name: newOwner.name, uid: editingOrder.orderedBy.uid, role: ADMIN_EMAILS.includes(newOwner.email) ? 'admin' : 'counselor' }; historyEvents.push({ timestamp: now, action: `Conseiller associé changé de **${editingOrder.orderedBy.name}** à **${newOwner.name}**`, by: userInfo }); } } historyEvents.push({ timestamp: now, action: "Commande **modifiée**", by: userInfo }); updatePayload.history = historyEvents; await updateDoc(orderRef, updatePayload); showToast("Commande modifiée !", 'success'); } else { const itemsWithStatus = orderData.items.map(item => ({ ...item, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED })); const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande **créée**`, by: userInfo }]}; delete newOrder.ownerEmail; const newDocRef = await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder); showToast("Commande ajoutée !", 'success'); setOpenCardId(newDocRef.id); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { console.error(e); showToast("Échec.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, allUsers, isAdmin, showToast, getCurrentUserInfo]);
     const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus, itemName) => { if (!db || !currentUser) return; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: newStatus } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme **${newStatus}**`, by: userInfo }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' mis à jour !`, 'success'); }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
     const handleConfirmCancelItem = useCallback(async (note) => { if (!itemToCancel) return; const { orderId, itemId, itemName } = itemToCancel; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: ITEM_STATUS.CANCELLED } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' **annulé**`, by: userInfo, ...(note.trim() && { note: note.trim() }) }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' annulé.`, 'success'); setShowItemCancelModal(false); setItemToCancel(null); }, [db, orders, itemToCancel, getCurrentUserInfo, showToast]);
@@ -307,7 +375,6 @@ export default function App() {
     const handleRequestOrderStatusUpdate = (order, newStatus) => { let message = `Changer le statut à '${newStatus}' ?`, color = 'bg-blue-600'; if (newStatus === ORDER_STATUS.PICKED_UP) { message = `Confirmer le retrait de la commande ?`; color = 'bg-purple-600'; } if (newStatus === ORDER_STATUS.ARCHIVED) { message = "Archiver cette commande ?"; color = 'bg-gray-600'; } setConfirmation({ isOpen: true, message, onConfirm: () => {handleUpdateOrderStatus(order.id, newStatus); closeConfirmation(); }, confirmColor: color }); };
     const handleRequestNotification = useCallback((order) => { setOrderToNotify(order); setShowNotificationModal(true); }, []);
     const handleShowOrderHistory = useCallback((order) => { setSelectedOrderForHistory(order); setShowOrderHistory(true); }, []);
-    const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
     const handleCancelItem = (orderId, itemId, itemName) => { setItemToCancel({ orderId, itemId, itemName }); setShowItemCancelModal(true); };
     const handleInitiateRollback = useCallback((order) => { setOrderToRollback(order); setShowRollbackModal(true); }, []);
 
@@ -332,6 +399,8 @@ export default function App() {
                 </header>
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-6">
                     <button onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><PlusCircle size={20} /> Nouvelle Commande</button>
+                    <button onClick={() => fileInputRef.current.click()} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"><FileUp size={20} /> Importer une commande</button>
+                    <input type="file" ref={fileInputRef} onChange={handlePdfFileChange} accept=".pdf" style={{ display: 'none' }} />
                     <div className="flex-grow"></div>
                     {viewMode === 'active' ? ( <button onClick={() => setViewMode('archived')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><Archive size={20} /> Voir les Archives</button> ) : ( <button onClick={() => setViewMode('active')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><List size={20} /> Commandes Actives</button> )}
                 </div>
