@@ -238,6 +238,44 @@ const Tooltip = ({ children, text, className }) => ( <div className={`relative i
 const Toast = ({ message, type, onClose }) => { const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'; const Icon = type === 'success' ? Check : type === 'error' ? AlertTriangle : Info; return ( <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}><Icon size={24} /><span>{message}</span><button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors"><X size={20} /></button></div> ); };
 const AlertModal = ({ title, message, buttonText, onAction }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6 flex justify-center"><button onClick={onAction} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">{buttonText}</button></div></div></div> );
 
+// =================================================================
+// === COMPOSANT AJOUTÉ POUR CORRIGER LE BUG DE LA PAGE BLANCHE ===
+// =================================================================
+const ConfirmationModal = ({ message, onConfirm, onCancel, confirmColor }) => {
+    // Détermine la classe de survol en fonction de la couleur de base
+    const getHoverColor = (baseColor) => {
+        if (baseColor.includes('red')) return 'hover:bg-red-700';
+        if (baseColor.includes('green')) return 'hover:bg-green-700';
+        if (baseColor.includes('purple')) return 'hover:bg-purple-700';
+        if (baseColor.includes('gray')) return 'hover:bg-gray-700';
+        return 'hover:bg-blue-700'; // Cas par défaut
+    };
+
+    const confirmButtonColor = confirmColor || 'bg-blue-600';
+    const confirmButtonHoverColor = getHoverColor(confirmButtonColor);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}>
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}>
+                <div className="text-center">
+                    <AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" />
+                    <h3 className="mt-4 text-xl font-medium text-white">Confirmation requise</h3>
+                    <p className="text-gray-400 mt-2">{message}</p>
+                </div>
+                <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4">
+                    <button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">
+                        Annuler
+                    </button>
+                    <button onClick={onConfirm} className={`${confirmButtonColor} ${confirmButtonHoverColor} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>
+                        Confirmer
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 const CancellationModal = ({ onConfirm, onCancel, title, isLastActiveItem }) => {
     const [note, setNote] = useState('');
     const handleConfirmClick = () => { onConfirm(note); };
@@ -502,21 +540,21 @@ export default function App() {
     const filteredAndSortedOrders = useMemo(() => {
         let currentOrders = [...orders];
         const finalStatuses = [ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED];
-        
+       
         if (viewMode === 'active') {
             currentOrders = currentOrders.filter(order => !finalStatuses.includes(getEffectiveOrderStatus(order)));
         } else {
             currentOrders = currentOrders.filter(order => finalStatuses.includes(getEffectiveOrderStatus(order)));
         }
-        
+       
         if (selectedStatusFilter !== 'All' && viewMode === 'active') {
             currentOrders = currentOrders.filter(order => getEffectiveOrderStatus(order) === selectedStatusFilter); 
         }
-        
+       
         if (selectedAdvisorFilter !== 'All') {
             currentOrders = currentOrders.filter(order => order.orderedBy?.email?.toLowerCase() === selectedAdvisorFilter.toLowerCase());
         }
-        
+       
         if (searchTerm.trim()) {
             const lowerCaseSearchTerm = searchTerm.trim().toLowerCase();
             currentOrders = currentOrders.filter(order => 
@@ -531,7 +569,7 @@ export default function App() {
                 ))
             );
         }
-        
+       
         return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
@@ -544,7 +582,7 @@ export default function App() {
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) return; try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
     const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: ADMIN_EMAILS.includes(currentUser.email) ? 'admin' : 'counselor' }; }, [currentUser]);
-    
+   
     const handleSaveOrder = useCallback(async (orderData) => {
         if (!db || !currentUser) return;
 
@@ -622,7 +660,7 @@ export default function App() {
             setIsSaving(false);
         }
     }, [db, currentUser, editingOrder, orders, showToast, getCurrentUserInfo, isAdmin, allUsers]);
-    
+   
     const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus, itemName) => { if (!db || !currentUser) return; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: newStatus } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme **${newStatus}**`, by: userInfo }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' mis à jour !`, 'success'); }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
     const handleConfirmCancelItem = useCallback(async (note) => { if (!itemToCancel) return; const { orderId, itemId, itemName } = itemToCancel; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: ITEM_STATUS.CANCELLED } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' **annulé**`, by: userInfo, note: note.trim() }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' annulé.`, 'success'); setShowItemCancelModal(false); setItemToCancel(null); }, [db, orders, itemToCancel, getCurrentUserInfo, showToast]);
     const handleConfirmRestore = useCallback(async (reason) => { if (!db || !currentUser || !orderToRestore) return; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToRestore.id); const restoredItems = orderToRestore.items.map(item => ({ ...item, status: ITEM_STATUS.ORDERED })); const newStatus = getDerivedOrderStatus({ ...orderToRestore, items: restoredItems }); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: "Commande **restaurée** depuis l'état annulé", by: userInfo, note: reason.trim() }; try { await updateDoc(orderRef, { items: restoredItems, currentStatus: newStatus, history: [...(orderToRestore.history || []), historyEvent] }); showToast("Commande restaurée avec succès !", 'success'); } catch (error) { console.error("Erreur lors de la restauration :", error); showToast("Échec de la restauration.", 'error'); } finally { setShowRestoreModal(false); setOrderToRestore(null); } }, [db, currentUser, orderToRestore, showToast, getCurrentUserInfo]);
