@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
+// Importation pour PDF.js
+import * as pdfjsLib from 'pdfjs-dist/build/pdf';
+
 // Importations Firebase
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -15,6 +18,13 @@ import {
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
 // =================================================================
+
+// Configuration pour PDF.js afin qu'il trouve son 'worker'
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+).toString();
+
 
 const firebaseConfig = {
     apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
@@ -177,12 +187,6 @@ const formatOrderDate = (isoString) => {
     }
 };
 
-/**
- * VERSION MISE À JOUR : Fonction d'analyse pour le PDF Orange Store
- * Analyse le texte brut d'un récapitulatif de commande pour en extraire les informations clés.
- * @param {string} text - Le texte copié depuis le PDF.
- * @returns {object} Un objet contenant les données structurées de la commande.
- */
 const parseOrderText = (text) => {
     const parsedData = {
         clientFirstName: '',
@@ -193,65 +197,40 @@ const parseOrderText = (text) => {
         items: [],
         orderNotes: ''
     };
-
-    // --- Extraction du N° de récapitulatif (plus fiable) ---
     const receiptMatch = text.match(/N° de récapitulatif de commande\s*\n(\w+)/i);
     if (receiptMatch) {
         parsedData.receiptNumber = receiptMatch[1].trim();
     }
-
-    // --- Extraction des informations client (nouvelle logique) ---
     const clientInfoMatch = text.match(/Informations client\n(.+)\n(\d+)/i);
     if (clientInfoMatch) {
-        const infoLine = clientInfoMatch[1].trim(); // Ex: "liliane labbaye lililabbaye@orange.fr"
-        const phone = clientInfoMatch[2].trim();    // Ex: "0671316116"
-
+        const infoLine = clientInfoMatch[1].trim();
+        const phone = clientInfoMatch[2].trim();
         const emailRegex = /([\w.-]+@[\w.-]+\.\w+)/;
         const emailMatch = infoLine.match(emailRegex);
-
         if (emailMatch) {
             parsedData.clientEmail = emailMatch[0];
-            // Ce qui n'est pas l'email est le nom complet
             const fullName = infoLine.replace(emailMatch[0], '').trim();
             const nameParts = fullName.split(/\s+/);
             parsedData.clientFirstName = nameParts[0] || '';
             parsedData.clientLastName = nameParts.slice(1).join(' ') || '';
         }
-
         parsedData.clientPhone = phone;
     }
-
-    // --- Extraction des articles (nouvelle logique verticale) ---
     const items = [];
-    
-    // On cherche le nom du produit entre "Produit" et "Taux de taxe"
     const productMatch = text.match(/Produit\s*\n([\s\S]*?)\s*\nTaux de/i);
-    
-    // On cherche la quantité entre "Quantité" et "Total (HT)"
-    // On ajuste pour être plus flexible avec les sauts de ligne
     const quantityMatch = text.match(/Quantité\s*\n([\s\S]*?)\s*Total\s*\n\s*\(HT\)/i);
-    
     if (productMatch && quantityMatch) {
-        // Nettoie le nom du produit (enlève les sauts de ligne et espaces superflus)
         const itemName = productMatch[1].trim().replace(/\s*\n\s*/g, ' ');
-        // Nettoie la quantité
         const quantity = parseInt(quantityMatch[1].trim(), 10);
-
         if (itemName && !isNaN(quantity)) {
-            items.push({
-                itemName: itemName,
-                quantity: quantity,
-            });
+            items.push({ itemName: itemName, quantity: quantity });
         }
     }
-    
     if (items.length > 0) {
         parsedData.items = items;
     }
-
     return parsedData;
 };
-
 
 // =================================================================
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
@@ -267,7 +246,7 @@ const CancellationModal = ({ onConfirm, onCancel, title, message }) => { const [
 const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => { const [reason, setReason] = useState(''); const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison (obligatoire)</label><textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button><button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button></div></div></div> ); };
 const LoginForm = ({ onLogin, error }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const handleSubmit = (e) => { e.preventDefault(); onLogin(email, password); }; return ( <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center mb-6"><LogIn className="mx-auto h-12 w-12 text-blue-400" /><h2 className="mt-4 text-2xl font-bold text-white">Connexion</h2><p className="text-gray-400 mt-1">Accès réservé.</p></div><form onSubmit={handleSubmit} className="space-y-6"><div><label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Adresse Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div><div><label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg" /></div>{error && (<p className="text-red-400 text-sm text-center">{error}</p>)}<button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Se connecter</button></form></div> ); };
 
-// Le composant OrderForm est mis à jour pour utiliser la nouvelle logique
+// === COMPOSANT MIS A JOUR ===
 const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, showToast }) => {
     const [clientFirstName, setClientFirstName] = useState(initialData?.clientFirstName || '');
     const [clientLastName, setClientLastName] = useState(initialData?.clientLastName || '');
@@ -278,40 +257,68 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
     const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
     const [formError, setFormError] = useState(null);
     const [ownerEmail, setOwnerEmail] = useState(initialData?.orderedBy?.email || '');
+    
+    const [isParsingPdf, setIsParsingPdf] = useState(false);
 
-    const [textToParse, setTextToParse] = useState('');
+    const handleFileSelectAndParse = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
 
-    const handleParseAndFill = () => {
-        if (!textToParse) {
-            setFormError("Veuillez coller le texte du PDF dans la zone dédiée.");
+        if (file.type !== 'application/pdf') {
+            showToast("Veuillez sélectionner un fichier PDF.", "error");
             return;
         }
+
+        setIsParsingPdf(true);
         setFormError(null);
-        
-        const data = parseOrderText(textToParse);
 
-        // Vérifie si des données ont été trouvées avant de notifier
-        const dataFound = Object.values(data).some(value => (Array.isArray(value) ? value.length > 0 : value));
+        try {
+            const fileReader = new FileReader();
+            fileReader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                let fullText = '';
 
-        if (!dataFound) {
-            showToast("Aucune information pertinente trouvée dans le texte.", "error");
-            return;
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                }
+                
+                const data = parseOrderText(fullText);
+
+                const dataFound = Object.values(data).some(value => (Array.isArray(value) ? value.length > 0 : value));
+
+                if (!dataFound) {
+                    showToast("Aucune information pertinente trouvée dans le PDF.", "error");
+                    return;
+                }
+
+                if (data.clientFirstName) setClientFirstName(data.clientFirstName.charAt(0).toUpperCase() + data.clientFirstName.slice(1).toLowerCase());
+                if (data.clientLastName) setClientLastName(data.clientLastName.toUpperCase());
+                if (data.clientEmail) setClientEmail(data.clientEmail);
+                if (data.clientPhone) setClientPhone(data.clientPhone);
+                if (data.receiptNumber) setReceiptNumber(data.receiptNumber);
+                if (data.orderNotes) setOrderNotes(data.orderNotes);
+
+                if (data.items && data.items.length > 0) {
+                    setItems(data.items.map(item => ({...item, quantity: item.quantity || 1})));
+                } else {
+                    setItems([{ itemName: '', quantity: '' }]);
+                }
+                
+                showToast("Formulaire pré-rempli avec succès depuis le PDF.", "success");
+            };
+            fileReader.readAsArrayBuffer(file);
+
+        } catch (error) {
+            console.error("Erreur d'analyse du PDF:", error);
+            showToast("Le fichier PDF n'a pas pu être lu.", "error");
+            setFormError("Une erreur est survenue lors de l'analyse du PDF.");
+        } finally {
+            setIsParsingPdf(false);
+            event.target.value = null; 
         }
-
-        if (data.clientFirstName) setClientFirstName(data.clientFirstName.charAt(0).toUpperCase() + data.clientFirstName.slice(1).toLowerCase());
-        if (data.clientLastName) setClientLastName(data.clientLastName.toUpperCase());
-        if (data.clientEmail) setClientEmail(data.clientEmail);
-        if (data.clientPhone) setClientPhone(data.clientPhone);
-        if (data.receiptNumber) setReceiptNumber(data.receiptNumber);
-        if (data.orderNotes) setOrderNotes(data.orderNotes);
-
-        if (data.items && data.items.length > 0) {
-            setItems(data.items);
-        } else {
-            setItems([{ itemName: '', quantity: '' }]);
-        }
-        
-        showToast("Formulaire pré-rempli avec succès.", "success");
     };
 
     const handleItemChange = useCallback((index, field, value) => {
@@ -372,26 +379,28 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
                 {!initialData && (
                     <div className="mb-6 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
                         <h3 className="text-lg font-semibold text-blue-300 mb-3 flex items-center gap-2">
-                            <FileWarning size={20} /> Remplissage Rapide par PDF
+                            <ReceiptText size={20} /> Remplissage Rapide par PDF
                         </h3>
-                        <label htmlFor="pdf-paste" className="block text-sm font-medium text-gray-300 mb-2">
-                            Collez ici le texte copié depuis votre PDF
+                        <label htmlFor="pdf-upload" className={`w-full text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors ${isParsingPdf ? 'bg-gray-600' : 'bg-blue-700 hover:bg-blue-800'}`}>
+                           {isParsingPdf ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                    Analyse en cours...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle size={20} /> Importer un récapitulatif PDF
+                                </>
+                            )}
                         </label>
-                        <textarea
-                            id="pdf-paste"
-                            rows="5"
-                            value={textToParse}
-                            onChange={(e) => setTextToParse(e.target.value)}
-                            className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm"
-                            placeholder="Copiez l'intégralité du texte de la commande ici..."
-                        ></textarea>
-                        <button
-                            type="button"
-                            onClick={handleParseAndFill}
-                            className="mt-3 w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2"
-                        >
-                            <CheckCircle size={20} /> Analyser et Remplir
-                        </button>
+                        <input
+                            id="pdf-upload"
+                            type="file"
+                            accept="application/pdf"
+                            onChange={handleFileSelectAndParse}
+                            className="hidden"
+                            disabled={isParsingPdf}
+                        />
                     </div>
                 )}
 
@@ -437,6 +446,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
         </div>
     );
 };
+
 
 const NotificationModal = ({ onConfirm, onCancel }) => { const [method, setMethod] = useState('email'); const [voicemail, setVoicemail] = useState(false); const handleConfirm = () => { onConfirm({ method, voicemail }); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Bell className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">Comment le client a-t-il été prévenu ?</h3></div><div className="mt-6 space-y-4"><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'email' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('email')}><div className="flex items-center gap-4"><Mail size={24} className={method === 'email' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Email</p><p className="text-sm text-gray-400">Envoi automatique d'un email.</p></div></div></div><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'sms' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('sms')}><div className="flex items-center gap-4"><MessageSquareText size={24} className={method === 'sms' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par SMS</p><p className="text-sm text-gray-400">Confirmer un envoi de SMS.</p></div></div></div><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'phone' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('phone')}><div className="flex items-center gap-4"><PhoneCall size={24} className={method === 'phone' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Appel Téléphonique</p><p className="text-sm text-gray-400">Confirmer un appel.</p></div></div>{method === 'phone' && ( <div className="mt-4 pl-10 flex items-center"><input id="voicemail-checkbox" type="checkbox" checked={voicemail} onChange={(e) => setVoicemail(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor="voicemail-checkbox" className="ml-2 block text-sm text-gray-300">Message vocal déposé.</label></div> )}</div></div><div className="mt-8 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg">Annuler</button><button onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">Confirmer</button></div></div></div> ); };
 const OrderHistoryModal = ({ order, onClose }) => { const notificationStats = useMemo(() => getNotificationStats(order.history), [order.history]); return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer" className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-2 text-center">Historique de la commande</h2>{notificationStats.total > 0 && ( <div className="bg-gray-900/50 p-4 rounded-lg mb-6 border border-gray-700"><h4 className="font-semibold text-white mb-3 text-center">Résumé des notifications ({notificationStats.total})</h4><div className="flex justify-center flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300"><span className="flex items-center gap-1.5"><Mail size={16} /> Email: <strong className="text-white">{notificationStats.email}</strong></span><span className="flex items-center gap-1.5"><MessageSquareText size={16} /> SMS: <strong className="text-white">{notificationStats.sms}</strong></span><span className="flex items-center gap-1.5"><PhoneCall size={16} /> Appels: <strong className="text-white">{notificationStats.phone}</strong></span>{notificationStats.voicemail > 0 && <span className="flex items-center gap-1.5 text-xs text-gray-400">(dont {notificationStats.voicemail} msg. vocaux)</span>}</div></div> )}<div className="space-y-4">{order.history && order.history.length > 0 ? ( order.history.slice().reverse().map((event, index) => { const Icon = getIconForHistoryAction(event.action); return ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4"><Icon size={20} className={`${getIconColorClass(event.action)} flex-shrink-0 mt-1`} /><div className="flex-1"><HistoryActionText text={event.action} /><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {formatOrderDate(event.timestamp)}</p>{event.note && <p className="text-gray-400 text-xs italic mt-2 border-l-2 border-gray-600 pl-2">Note: {event.note}</p>}</div></div> ); }) ) : ( <p className="text-gray-400 text-center">Aucun historique.</p> )}</div></div></div> ); };
