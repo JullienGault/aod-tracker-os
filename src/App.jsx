@@ -188,7 +188,7 @@ const formatOrderDate = (isoString) => {
 };
 
 /**
- * VERSION FINALE : Fonction d'analyse pour le PDF Orange Store (Format 20/06/2025)
+ * VERSION FINALE : Gère les commandes à un ou plusieurs articles.
  * Analyse le texte brut d'un récapitulatif de commande pour en extraire les informations clés.
  * @param {string} text - Le texte extrait du PDF.
  * @returns {object} Un objet contenant les données structurées de la commande.
@@ -204,7 +204,7 @@ const parseOrderText = (text) => {
         orderNotes: ''
     };
 
-    // --- LOGIQUE pour les informations client (sur 3 lignes) ---
+    // --- LOGIQUE CLIENT & REÇU (inchangée) ---
     const clientMatch = text.match(
         /Informations client\n([\s\S]*?)\n([\w.-]+@[\w.-]+)\n(\d+)/
     );
@@ -217,25 +217,54 @@ const parseOrderText = (text) => {
         parsedData.clientPhone = clientMatch[3].trim();
     }
 
-    // --- LOGIQUE pour le N° de récapitulatif (plus robuste) ---
     const receiptMatch = text.match(/N° de récapitulatif de commande\s+(\w+)/);
     if (receiptMatch) {
         parsedData.receiptNumber = receiptMatch[1].trim();
     }
 
-    // --- LOGIQUE pour les articles (format horizontal) ---
-    const itemMatch = text.match(
-        /Quantité\s+([\s\S]+?)\s+(\d+)\s+Total/
-    );
-    if (itemMatch) {
-        const itemName = itemMatch[1].trim().replace(/\s*\n\s*/g, ' '); // Nettoie le nom de l'article
-        const quantity = parseInt(itemMatch[2].trim(), 10);
-        
-        if (itemName && !isNaN(quantity)) {
-            parsedData.items.push({
-                itemName: itemName,
-                quantity: quantity,
-            });
+    // --- NOUVELLE LOGIQUE PUISSANTE POUR PLUSIEURS ARTICLES ---
+
+    // 1. Isoler la section complète des articles, de "Produit" à "Détail des taxes"
+    const itemsSectionMatch = text.match(/Produit([\s\S]+?)Détail des taxes/);
+    if (itemsSectionMatch) {
+        const itemsSection = itemsSectionMatch[1];
+
+        // 2. Extraire le bloc de noms et les séparer par les sauts de ligne
+        const namesBlockMatch = itemsSection.match(/([\s\S]+?)Taux de taxe/);
+        if (namesBlockMatch) {
+            const productNames = namesBlockMatch[1]
+                .trim()
+                .split('\n')
+                .map(name => name.trim().replace(/\s+/g, ' ')) // Nettoie chaque nom
+                .filter(name => name); // Enlève les lignes vides
+
+            // 3. Extraire toutes les quantités avec une expression régulière "globale"
+            // Cherche soit "Quantité 1" soit "€ 1" (pour les lignes suivantes)
+            const quantityRegex = /(?:Quantité|€)\s+(\d+)\s+/g;
+            const quantities = [...itemsSection.matchAll(quantityRegex)].map(match => parseInt(match[1], 10));
+
+            // 4. Combiner les listes de noms et de quantités
+            const numItems = Math.min(productNames.length, quantities.length);
+            for (let i = 0; i < numItems; i++) {
+                if (productNames[i] && quantities[i]) {
+                    parsedData.items.push({
+                        itemName: productNames[i],
+                        quantity: quantities[i],
+                    });
+                }
+            }
+        }
+    }
+    
+    // Si la nouvelle logique n'a rien trouvé, on tente l'ancienne (pour la rétrocompatibilité)
+    if (parsedData.items.length === 0) {
+        const itemMatch = text.match(/Quantité\s+([\s\S]+?)\s+(\d+)\s+Total/);
+        if (itemMatch) {
+            const itemName = itemMatch[1].trim().replace(/\s*\n\s*/g, ' ');
+            const quantity = parseInt(itemMatch[2].trim(), 10);
+            if (itemName && !isNaN(quantity)) {
+                parsedData.items.push({ itemName: itemName, quantity: quantity });
+            }
         }
     }
 
