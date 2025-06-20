@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 // Importations Firebase
 import { initializeApp } from 'firebase/app';
@@ -8,7 +8,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from
 // Importations des icônes Lucide React
 import {
     PlusCircle, Package, CheckCircle, Bell, History, User, LogOut, UserCheck, LogIn, AlertTriangle, X, Info, Trash2, Edit, Phone, Mail, ReceiptText, Search, MinusCircle, Check, ChevronDown, Archive, Undo2, List, XCircle, FileWarning,
-    MessageSquareText, PhoneCall, BellRing, Clock // Ajout de l'icône Horloge
+    MessageSquareText, PhoneCall, BellRing, Clock, CalendarCheck2
 } from 'lucide-react';
 
 // =================================================================
@@ -74,6 +74,19 @@ const getUserDisplayName = (email) => {
 // =================================================================
 // FONCTIONS UTILITAIRES PARTAGÉES
 // =================================================================
+
+const isDateToday = (isoString) => {
+    if (!isoString) return false;
+    try {
+        const date = new Date(isoString);
+        const today = new Date();
+        return date.getDate() === today.getDate() &&
+               date.getMonth() === today.getMonth() &&
+               date.getFullYear() === today.getFullYear();
+    } catch (e) {
+        return false;
+    }
+};
 
 const getNotificationStats = (history) => {
     if (!history) return { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 };
@@ -167,11 +180,11 @@ const formatOrderDate = (isoString) => {
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
 // =================================================================
 
-const TailwindColorSafelist = () => ( <div style={{ display: 'none' }}><span className="bg-yellow-500"></span><span className="text-yellow-500"></span><span className="text-yellow-400"></span><span className="bg-green-500"></span><span className="text-green-500"></span><span className="text-green-400"></span><span className="bg-green-600"></span><span className="hover:bg-green-700"></span><span className="bg-blue-400"></span><span className="bg-blue-500"></span><span className="bg-blue-600"></span><span className="hover:bg-blue-700"></span><span className="text-blue-500"></span><span className="text-blue-400"></span><span className="bg-purple-600"></span><span className="hover:bg-purple-700"></span><span className="text-purple-600"></span><span className="text-purple-400"></span><span className="bg-gray-600"></span><span className="hover:bg-gray-700"></span><span className="text-gray-600"></span><span className="text-gray-500"></span><span className="text-gray-400"></span><span className="bg-red-700"></span><span className="bg-red-600"></span><span className="hover:bg-red-700"></span><span className="hover:bg-red-800"></span><span className="text-red-700"></span><span className="text-red-400"></span><span className="bg-yellow-600"></span><span className="hover:bg-yellow-700"></span></div> );
+const TailwindColorSafelist = () => ( <div style={{ display: 'none' }}><span className="bg-yellow-500"></span><span className="text-yellow-500"></span><span className="text-yellow-400"></span><span className="bg-green-500"></span><span className="text-green-500"></span><span className="text-green-400"></span><span className="bg-green-600"></span><span className="hover:bg-green-700"></span><span className="bg-blue-400"></span><span className="bg-blue-500"></span><span className="bg-blue-600"></span><span className="hover:bg-blue-700"></span><span className="text-blue-500"></span><span className="text-blue-400"></span><span className="bg-purple-600"></span><span className="hover:bg-purple-700"></span><span className="text-purple-600"></span><span className="text-purple-400"></span><span className="bg-gray-600"></span><span className="hover:bg-gray-700"></span><span className="text-gray-600"></span><span className="text-gray-500"></span><span className="text-gray-400"></span><span className="bg-red-700"></span><span className="bg-red-600"></span><span className="hover:bg-red-700"></span><span className="hover:bg-red-800"></span><span className="text-red-700"></span><span className="text-red-400"></span><span className="bg-yellow-600"></span><span className="hover:bg-yellow-700"></span><span className="ring-green-500"></span></div> );
 const HistoryActionText = ({ text }) => { if (!text) return null; const parts = text.split(/\*\*(.*?)\*\*/g); return ( <p className="text-white font-medium">{parts.map((part, i) => i % 2 === 1 ? <strong key={i}>{part}</strong> : part)}</p> ); };
 const AnimationStyles = () => ( <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .5s ease-in-out}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}.tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding:8px 12px;background-color:rgba(45,55,72,.9);color:#fff;border-radius:8px;font-size:14px;white-space:pre-wrap;z-index:50;opacity:0;visibility:hidden;transition:opacity .2s ease-in-out,visibility .2s ease-in-out;box-shadow:0 4px 10px rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1)}.group:hover .tooltip{opacity:1;visibility:visible}.custom-scrollbar::-webkit-scrollbar{width:8px}.custom-scrollbar::-webkit-scrollbar-track{background:#374151;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#60A5FA;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb:hover{background:#3B82F6}`}</style> );
 const Tooltip = ({ children, text, className }) => ( <div className={`relative inline-block group ${className || ''}`}>{children}{text && (<div className="tooltip">{text}</div>)}</div> );
-const Toast = ({ message, type, onClose }) => { const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500'; const Icon = type === 'success' ? Check : AlertTriangle; return ( <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}><Icon size={24} /><span>{message}</span><button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors"><X size={20} /></button></div> ); };
+const Toast = ({ message, type, onClose }) => { const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'; const Icon = type === 'success' ? Check : type === 'error' ? AlertTriangle : Info; return ( <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}><Icon size={24} /><span>{message}</span><button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors"><X size={20} /></button></div> ); };
 const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-blue-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
 const CancellationModal = ({ onConfirm, onCancel, title, message }) => { const [note, setNote] = useState(''); const handleConfirmClick = () => { onConfirm(note); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-red-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="cancellation-note" className="block text-sm font-medium text-gray-300 mb-2">Raison de l'annulation (optionnel)</label><textarea id="cancellation-note" rows="3" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Rupture de stock fournisseur..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Retour</button><button onClick={handleConfirmClick} className="bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Confirmer l'annulation</button></div></div></div> ); };
 const RollbackStatusModal = ({ onConfirm, onCancel, title, message }) => { const [reason, setReason] = useState(''); const handleConfirmClick = () => { if (reason.trim()) { onConfirm(reason); } }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Undo2 className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6"><label htmlFor="rollback-reason" className="block text-sm font-medium text-gray-300 mb-2">Raison (obligatoire)</label><textarea id="rollback-reason" rows="3" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg text-sm" placeholder="Ex: Erreur de manipulation..."></textarea></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">Annuler</button><button onClick={handleConfirmClick} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" disabled={!reason.trim()}>Confirmer le retour</button></div></div></div> ); };
@@ -180,8 +193,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose }) => { const [clien
 const NotificationModal = ({ onConfirm, onCancel }) => { const [method, setMethod] = useState('email'); const [voicemail, setVoicemail] = useState(false); const handleConfirm = () => { onConfirm({ method, voicemail }); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Bell className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">Comment le client a-t-il été prévenu ?</h3></div><div className="mt-6 space-y-4"><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'email' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('email')}><div className="flex items-center gap-4"><Mail size={24} className={method === 'email' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Email</p><p className="text-sm text-gray-400">Envoi automatique d'un email.</p></div></div></div><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'sms' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('sms')}><div className="flex items-center gap-4"><MessageSquareText size={24} className={method === 'sms' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par SMS</p><p className="text-sm text-gray-400">Confirmer un envoi de SMS.</p></div></div></div><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'phone' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('phone')}><div className="flex items-center gap-4"><PhoneCall size={24} className={method === 'phone' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Appel Téléphonique</p><p className="text-sm text-gray-400">Confirmer un appel.</p></div></div>{method === 'phone' && ( <div className="mt-4 pl-10 flex items-center"><input id="voicemail-checkbox" type="checkbox" checked={voicemail} onChange={(e) => setVoicemail(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor="voicemail-checkbox" className="ml-2 block text-sm text-gray-300">Message vocal déposé.</label></div> )}</div></div><div className="mt-8 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg">Annuler</button><button onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">Confirmer</button></div></div></div> ); };
 const OrderHistoryModal = ({ order, onClose }) => { const notificationStats = useMemo(() => getNotificationStats(order.history), [order.history]); return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer" className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-2 text-center">Historique de la commande</h2>{notificationStats.total > 0 && ( <div className="bg-gray-900/50 p-4 rounded-lg mb-6 border border-gray-700"><h4 className="font-semibold text-white mb-3 text-center">Résumé des notifications ({notificationStats.total})</h4><div className="flex justify-center flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300"><span className="flex items-center gap-1.5"><Mail size={16} /> Email: <strong className="text-white">{notificationStats.email}</strong></span><span className="flex items-center gap-1.5"><MessageSquareText size={16} /> SMS: <strong className="text-white">{notificationStats.sms}</strong></span><span className="flex items-center gap-1.5"><PhoneCall size={16} /> Appels: <strong className="text-white">{notificationStats.phone}</strong></span>{notificationStats.voicemail > 0 && <span className="flex items-center gap-1.5 text-xs text-gray-400">(dont {notificationStats.voicemail} msg. vocaux)</span>}</div></div> )}<div className="space-y-4">{order.history && order.history.length > 0 ? ( order.history.slice().reverse().map((event, index) => { const Icon = getIconForHistoryAction(event.action); return ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4"><Icon size={20} className={`${getIconColorClass(event.action)} flex-shrink-0 mt-1`} /><div className="flex-1"><HistoryActionText text={event.action} /><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {formatOrderDate(event.timestamp)}</p>{event.note && <p className="text-gray-400 text-xs italic mt-2 border-l-2 border-gray-600 pl-2">Note: {event.note}</p>}</div></div> ); }) ) : ( <p className="text-gray-400 text-center">Aucun historique.</p> )}</div></div></div> ); };
 
-const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOrderStatusUpdate, isAdmin, onShowHistory, onEdit, onRequestDelete, onInitiateRollback, onNotifyClient }) => {
-    const [isOpen, setIsOpen] = useState(false);
+const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOrderStatusUpdate, isAdmin, onShowHistory, onEdit, onRequestDelete, onInitiateRollback, onNotifyClient, isOpen, onToggleOpen, isNew }) => {
     const displayStatus = getEffectiveOrderStatus(order);
     const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500', icon: Info };
     const isNotified = displayStatus === ORDER_STATUS.NOTIFIED;
@@ -206,8 +218,8 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
     const canEdit = ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus);
 
     return (
-        <div className="bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:shadow-2xl hover:ring-2 hover:ring-blue-500/50">
-            <div className="flex justify-between items-start p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={() => setIsOpen(!isOpen)}>
+        <div className={`bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:ring-2 hover:ring-blue-500/50 ${isNew ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-green-500' : ''}`}>
+            <div className="flex justify-between items-start p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={onToggleOpen}>
                 <div className="flex-1 pr-4">
                     <h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3>
                     <div className="mt-2 space-y-1 text-sm text-gray-300">
@@ -223,7 +235,7 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                     <ChevronDown size={24} className={`text-gray-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`} />
                 </div>
             </div>
-            <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-screen' : 'max-h-0'}`}>
+            <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-[1000px]' : 'max-h-0'}`}>
                 <div className="p-4 sm:p-6 border-t border-gray-700">
                     {showAlertForExcessiveContact && (
                         <div className="bg-red-900/70 border border-red-700 rounded-lg p-3 mb-4">
@@ -275,9 +287,7 @@ const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOr
                         {isReNotifyLocked && (
                             <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2 animate-fade-in">
                                 <Clock size={14} className="flex-shrink-0" />
-                                <span>
-                                    Prochaine notification possible dans env. {remainingLockHours}h.
-                                </span>
+                                <span>Prochaine notification possible dans env. {remainingLockHours}h.</span>
                             </div>
                         )}
                     </div>
@@ -319,6 +329,7 @@ export default function App() {
     const [selectedAdvisorFilter, setSelectedAdvisorFilter] = useState('All');
     const [viewMode, setViewMode] = useState('active');
     const [toast, setToast] = useState(null);
+    const [openCardId, setOpenCardId] = useState(null);
 
     useEffect(() => { document.title = "AOD Tracker 2.0"; }, []);
 
@@ -379,10 +390,16 @@ export default function App() {
         return currentOrders;
     }, [orders, selectedStatusFilter, selectedAdvisorFilter, searchTerm, viewMode]);
 
+    const todaysOrdersCount = useMemo(() => orders.filter(order => isDateToday(order.orderDate)).length, [orders]);
+
+    const handleToggleCard = (orderId) => {
+        setOpenCardId(prevOpenCardId => (prevOpenCardId === orderId ? null : orderId));
+    };
+
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) return; try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
     const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: ADMIN_EMAILS.includes(currentUser.email) ? 'admin' : 'counselor' }; }, [currentUser]);
-    const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) return; setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id); const existingItems = editingOrder.items || []; const updatedItems = orderData.items.map((newItem) => { const existing = existingItems.find(e => e.itemName === newItem.itemName); return existing ? { ...existing, quantity: newItem.quantity } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED }; }); await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande **modifiée**", by: userInfo }] }); showToast("Commande modifiée !", 'success'); } else { const itemsWithStatus = orderData.items.map(item => ({ ...item, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED })); const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande **créée**`, by: userInfo }]}; await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder); showToast("Commande ajoutée !", 'success'); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { console.error(e); showToast("Échec.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
+    const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) return; setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id); const existingItems = editingOrder.items || []; const updatedItems = orderData.items.map((newItem) => { const existing = existingItems.find(e => e.itemName === newItem.itemName); return existing ? { ...existing, quantity: newItem.quantity } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED }; }); await updateDoc(orderRef, { ...orderData, items: updatedItems, history: [...(editingOrder.history || []), { timestamp: now, action: "Commande **modifiée**", by: userInfo }] }); showToast("Commande modifiée !", 'success'); } else { const itemsWithStatus = orderData.items.map(item => ({ ...item, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED })); const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande **créée**`, by: userInfo }]}; const newDocRef = await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder); showToast("Commande ajoutée !", 'success'); setOpenCardId(newDocRef.id); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { console.error(e); showToast("Échec.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, getCurrentUserInfo, showToast]);
     const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus, itemName) => { if (!db || !currentUser) return; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: newStatus } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme **${newStatus}**`, by: userInfo }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' mis à jour !`, 'success'); }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
     const handleConfirmCancelItem = useCallback(async (note) => { if (!itemToCancel) return; const { orderId, itemId, itemName } = itemToCancel; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: ITEM_STATUS.CANCELLED } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' **annulé**`, by: userInfo, ...(note.trim() && { note: note.trim() }) }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' annulé.`, 'success'); setShowItemCancelModal(false); setItemToCancel(null); }, [db, orders, itemToCancel, getCurrentUserInfo, showToast]);
     const handleUpdateOrderStatus = useCallback(async (orderId, newStatus) => { if (!db || !currentUser) return; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); let actionText = `Statut changé pour '**${newStatus}**'`; if (newStatus === ORDER_STATUS.PICKED_UP) actionText = "Commande **retirée**"; if (newStatus === ORDER_STATUS.ARCHIVED) actionText = "Commande **archivée**"; const historyEvent = { timestamp: now, action: actionText, by: userInfo }; const orderToUpdate = orders.find(o => o.id === orderId); if(orderToUpdate) { await updateDoc(orderRef, { currentStatus: newStatus, history: [...(orderToUpdate.history || []), historyEvent] }); showToast(`Commande mise à jour !`, 'success'); } }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
@@ -415,57 +432,51 @@ export default function App() {
             {showNotificationModal && orderToNotify && ( <NotificationModal onConfirm={handleConfirmNotification} onCancel={() => { setShowNotificationModal(false); setOrderToNotify(null); }} /> )}
             <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
-                    <div>
-                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1>
-                        <p className="text-gray-400 mt-1 text-sm sm:text-base">Suivi des commandes d'accessoires en temps réel.</p>
-                    </div>
-                    <div className="mt-4 sm:mt-0 flex flex-wrap items-center justify-end gap-2 sm:gap-4">
-                        <div className="flex items-center gap-2 text-blue-300"><User size={18} /><span className="font-medium text-sm sm:text-base">Connecté :</span><span className="bg-gray-700/50 px-2 py-1 rounded-full text-xs sm:text-sm font-semibold text-white">{getCurrentUserInfo()?.name || 'Conseiller'}</span></div>
-                        {isAdmin ? ( <div className="flex flex-wrap gap-2 sm:gap-4"><span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold text-white shadow-md"><UserCheck size={16} /> Admin</span><Tooltip text="Déconnexion"><button onClick={handleLogout} aria-label="Déconnexion" className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip></div> ) : ( <Tooltip text="Déconnexion"><button onClick={handleLogout} aria-label="Déconnexion" className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip> )}
-                    </div>
+                    <div><h1 className="text-3xl sm:text-4xl font-bold tracking-tight">AOD Tracker 2.0</h1><p className="text-gray-400 mt-1 text-sm sm:text-base">Suivi des commandes d'accessoires en temps réel.</p></div>
+                    <div className="mt-4 sm:mt-0 flex flex-wrap items-center justify-end gap-2 sm:gap-4"><div className="flex items-center gap-2 text-blue-300"><User size={18} /><span className="font-medium text-sm sm:text-base">Connecté :</span><span className="bg-gray-700/50 px-2 py-1 rounded-full text-xs sm:text-sm font-semibold text-white">{getCurrentUserInfo()?.name || 'Conseiller'}</span></div>{isAdmin ? ( <div className="flex flex-wrap gap-2 sm:gap-4"><span className="inline-flex items-center gap-2 bg-blue-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold text-white shadow-md"><UserCheck size={16} /> Admin</span><Tooltip text="Déconnexion"><button onClick={handleLogout} aria-label="Déconnexion" className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip></div> ) : ( <Tooltip text="Déconnexion"><button onClick={handleLogout} aria-label="Déconnexion" className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-700"><LogOut size={22} /></button></Tooltip> )}</div>
                 </header>
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-6">
                     <button onClick={() => { setShowOrderForm(true); setEditingOrder(null); }} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><PlusCircle size={20} /> Nouvelle Commande</button>
                     <div className="flex-grow"></div>
                     {viewMode === 'active' ? ( <button onClick={() => setViewMode('archived')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><Archive size={20} /> Voir les Archives</button> ) : ( <button onClick={() => setViewMode('active')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><List size={20} /> Commandes Actives</button> )}
                 </div>
-                <div className="bg-gray-800/50 rounded-2xl p-4 mb-8">
-                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                         <div className="relative flex-grow">
-                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" />
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-gray-800/50 rounded-2xl p-4 flex items-center gap-4 md:col-span-1">
+                        <div className="bg-green-500/10 p-3 rounded-full"><CalendarCheck2 size={24} className="text-green-400" /></div>
+                        <div><p className="text-gray-400 text-sm">Commandes du jour</p><p className="text-2xl font-bold text-white">{todaysOrdersCount}</p></div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-2xl p-4 md:col-span-3">
+                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                             <div className="relative flex-grow sm:col-span-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" /></div>
+                             <div className="relative sm:col-span-1"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}><option value="All">Tous les statuts</option>{Object.values(ORDER_STATUSES_CONFIG).filter(s => ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(s.label)).map(status => ( <option key={status.label} value={status.label}>{status.label}</option> )) }</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                             <div className="relative sm:col-span-1"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
                          </div>
-                         <div className="relative">
-                             <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}>
-                                 <option value="All">Tous les statuts</option>
-                                 {Object.values(ORDER_STATUSES_CONFIG).filter(s => ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(s.label)).map(status => ( <option key={status.label} value={status.label}>{status.label}</option> )) }
-                             </select>
-                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                         </div>
-                         <div className="relative"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                     </div>
+                    </div>
                 </div>
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
-                {isLoading ? (
-                    <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /><p className="text-gray-400 mt-4">Chargement...</p></div>
-                ) : filteredAndSortedOrders.length === 0 ? (
-                    <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">{viewMode === 'active' ? 'Aucune commande active' : 'Aucune archive'}</h2><p className="text-gray-400 mt-2">{viewMode === 'active' ? 'Créez une nouvelle commande pour commencer.' : ''}</p></div>
-                ) : (
+                {isLoading ? ( <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto" /><p className="text-gray-400 mt-4">Chargement...</p></div> ) : filteredAndSortedOrders.length === 0 ? ( <div className="text-center py-10 sm:py-20 bg-gray-800 rounded-2xl"><h2 className="text-xl sm:text-2xl font-semibold text-gray-300">{viewMode === 'active' ? 'Aucune commande active' : 'Aucune archive'}</h2><p className="text-gray-400 mt-2">{viewMode === 'active' ? 'Créez une nouvelle commande pour commencer.' : ''}</p></div> ) : (
                     <div className="grid grid-cols-1 gap-6 animate-fade-in">
-                        {filteredAndSortedOrders.map((order) => (
-                            <OrderCard 
-                                key={order.id} 
-                                order={order} 
-                                onRequestItemStatusUpdate={handleRequestItemStatusUpdate}
-                                onCancelItem={handleCancelItem}
-                                onNotifyClient={handleRequestNotification}
-                                onRequestOrderStatusUpdate={handleRequestOrderStatusUpdate}
-                                isAdmin={isAdmin} 
-                                onShowHistory={handleShowOrderHistory}
-                                onEdit={handleEditOrder}
-                                onRequestDelete={handleRequestDelete}
-                                onInitiateRollback={handleInitiateRollback}
-                            />
-                        ))}
+                        {filteredAndSortedOrders.map((order) => {
+                            const isNew = isDateToday(order.orderDate);
+                            return (
+                                <OrderCard 
+                                    key={order.id} 
+                                    order={order} 
+                                    onRequestItemStatusUpdate={handleRequestItemStatusUpdate}
+                                    onCancelItem={handleCancelItem}
+                                    onNotifyClient={handleRequestNotification}
+                                    onRequestOrderStatusUpdate={handleRequestOrderStatusUpdate}
+                                    isAdmin={isAdmin} 
+                                    onShowHistory={handleShowOrderHistory}
+                                    onEdit={handleEditOrder}
+                                    onRequestDelete={handleRequestDelete}
+                                    onInitiateRollback={handleInitiateRollback}
+                                    isOpen={openCardId === order.id}
+                                    onToggleOpen={() => handleToggleCard(order.id)}
+                                    isNew={isNew}
+                                />
+                            );
+                        })}
                     </div>
                 )}
             </div>
