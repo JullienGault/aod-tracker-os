@@ -13,11 +13,8 @@ import {
 
 // Importation de la bibliothèque PDF
 import * as pdfjs from 'pdfjs-dist';
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url,
-).toString();
-
+// CONFIGURATION CORRIGÉE ET FIABLE DU WORKER
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
@@ -301,8 +298,6 @@ export default function App() {
         setOpenCardId(prevOpenCardId => (prevOpenCardId === orderId ? null : orderId));
     };
 
-    const handleEditOrder = useCallback((order) => { setEditingOrder(order); setShowOrderForm(true); }, []);
-    
     const handleManualCreate = () => {
         setShowCreationChoiceModal(false);
         setEditingOrder(null);
@@ -313,6 +308,11 @@ export default function App() {
         setShowCreationChoiceModal(false);
         fileInputRef.current.click();
     };
+
+    const handleEditOrder = useCallback((order) => { 
+        setEditingOrder(order); 
+        setShowOrderForm(true); 
+    }, []);
 
     const parseOrderFromText = useCallback((text) => {
         console.log("Texte brut extrait du PDF pour débogage :\n", text);
