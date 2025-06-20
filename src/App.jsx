@@ -14,8 +14,8 @@ import {
 // Importation de la bibliothèque PDF
 import * as pdfjs from 'pdfjs-dist/build/pdf';
 
-// CONFIGURATION FINALE VIA UNE URL CDN DIRECTE ET VÉRIFIÉE
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.js'';
+// CONFIGURATION DÉFINITIVE AVEC L'URL CDN VÉRIFIÉE (JSDELIVR)
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.js`;
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
