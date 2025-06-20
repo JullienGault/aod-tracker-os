@@ -11,10 +11,10 @@ import {
     MessageSquareText, PhoneCall, BellRing, Clock, CalendarCheck2, FileUp, FilePenLine
 } from 'lucide-react';
 
-// Importation de la bibliothèque PDF avec la méthode finale pour Vite
-import * as pdfjs from 'pdfjs-dist/build/pdf';
-import PdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
-pdfjs.GlobalWorkerOptions.workerSrc = PdfjsWorker;
+// Importation de la bibliothèque PDF
+import * as pdfjs from 'pdfjs-dist';
+// CONFIGURATION FINALE ET CORRECTE DU WORKER
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
