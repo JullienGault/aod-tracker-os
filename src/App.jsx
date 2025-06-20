@@ -188,7 +188,7 @@ const formatOrderDate = (isoString) => {
 };
 
 /**
- * VERSION FINALE ROBUSTE : Gère le texte "aplati" sur une seule ligne.
+ * VERSION FINALE CORRIGÉE : Analyse le texte "aplati" et gère plusieurs articles de manière ciblée.
  * @param {string} text - Le texte extrait du PDF.
  * @returns {object} Un objet contenant les données structurées de la commande.
  */
@@ -223,16 +223,26 @@ const parseOrderText = (text) => {
         parsedData.clientPhone = clientMatch[3];
     }
 
-    // Articles (logique globale avec une expression régulière complexe)
-    // Elle cherche le motif [Référence] [Nom] [Taxe] [Prix] [Qté] [Total]
-    const itemRegex = /([A-Z0-9-]+\s*(?:5G)?)\s(.*?)\s(\d{1,2}\s?%)\s([\d,]+\s€)\s(\d+)\s([\d,]+\s€)/g;
+    // --- LOGIQUE D'ARTICLES CORRIGÉE ---
+    parsedData.items = []; // On s'assure que la liste est vide avant de la remplir
 
-    const itemMatches = [...cleanText.matchAll(itemRegex)];
-    for (const match of itemMatches) {
-        parsedData.items.push({
-            itemName: match[2].trim(), // Groupe 2 : le nom du produit
-            quantity: parseInt(match[5], 10) // Groupe 5 : la quantité
-        });
+    // 1. Isoler la section qui contient UNIQUEMENT les lignes des articles
+    const itemsBlockMatch = cleanText.match(/Total \(HT\)([\s\S]+?)Détail des taxes/);
+    
+    if (itemsBlockMatch) {
+        const itemsBlock = itemsBlockMatch[1];
+        
+        // 2. Utiliser la regex globale sur cette section isolée pour trouver tous les articles
+        const itemRegex = /([A-Z0-9-]+\s*(?:5G)?)\s(.*?)\s(\d{1,2}\s?%)\s([\d,]+\s€)\s(\d+)\s([\d,]+\s€)/g;
+        
+        const itemMatches = [...itemsBlock.matchAll(itemRegex)];
+        
+        for (const match of itemMatches) {
+            parsedData.items.push({
+                itemName: match[2].trim(), // Groupe 2 : le nom du produit
+                quantity: parseInt(match[5], 10) // Groupe 5 : la quantité
+            });
+        }
     }
 
     return parsedData;
