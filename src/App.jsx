@@ -187,6 +187,16 @@ const formatOrderDate = (isoString) => {
     }
 };
 
+// Formate une date ISO (de Firestore) en une chaîne compatible avec <input type="datetime-local">
+const formatISOToDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    // Soustrait le décalage de fuseau horaire pour afficher l'heure locale correcte
+    const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(date - tzoffset)).toISOString().slice(0, 16);
+    return localISOTime;
+};
+
 const parseOrderText = (text) => {
     const parsedData = { clientFirstName: '', clientLastName: '', clientEmail: '', clientPhone: '', receiptNumber: '', items: [], orderNotes: '' };
     const cleanText = text.replace(/\s+/g, ' ').trim();
@@ -226,7 +236,7 @@ const HistoryActionText = ({ text }) => { if (!text) return null; const parts = 
 const AnimationStyles = () => ( <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .5s ease-in-out}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}.tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding:8px 12px;background-color:rgba(45,55,72,.9);color:#fff;border-radius:8px;font-size:14px;white-space:pre-wrap;z-index:50;opacity:0;visibility:hidden;transition:opacity .2s ease-in-out,visibility .2s ease-in-out;box-shadow:0 4px 10px rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1)}.group:hover .tooltip{opacity:1;visibility:visible}.custom-scrollbar::-webkit-scrollbar{width:8px}.custom-scrollbar::-webkit-scrollbar-track{background:#374151;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#60A5FA;border-radius:10px}.custom-scrollbar::-webkit-scrollbar-thumb:hover{background:#3B82F6}`}</style> );
 const Tooltip = ({ children, text, className }) => ( <div className={`relative inline-block group ${className || ''}`}>{children}{text && (<div className="tooltip">{text}</div>)}</div> );
 const Toast = ({ message, type, onClose }) => { const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'; const Icon = type === 'success' ? Check : type === 'error' ? AlertTriangle : Info; return ( <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white flex items-center gap-3 z-[999] ${bgColor} animate-fade-in-up`}><Icon size={24} /><span>{message}</span><button onClick={onClose} className="ml-2 text-white/80 hover:text-white transition-colors"><X size={20} /></button></div> ); };
-const ConfirmationModal = ({ message, onConfirm, onCancel, confirmText = 'Confirmer', cancelText = 'Annuler', confirmColor = 'bg-blue-600' }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">{message}</h3></div><div className="mt-6 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto">{cancelText}</button><button onClick={onConfirm} className={`${confirmColor} hover:${confirmColor.replace('600', '700')} text-white font-bold py-2 px-6 rounded-lg transition-colors w-full sm:w-auto`}>{confirmText}</button></div></div></div> );
+const AlertModal = ({ title, message, buttonText, onAction }) => ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in"><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700 animate-fade-in-up mx-4 sm:mx-0"><div className="text-center"><AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" /><h3 className="mt-4 text-xl font-medium text-white">{title}</h3><p className="text-gray-400 mt-2">{message}</p></div><div className="mt-6 flex justify-center"><button onClick={onAction} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">{buttonText}</button></div></div></div> );
 
 const CancellationModal = ({ onConfirm, onCancel, title, isLastActiveItem }) => {
     const [note, setNote] = useState('');
@@ -268,157 +278,87 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
     const [receiptNumber, setReceiptNumber] = useState(initialData?.receiptNumber || '');
     const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items : [{ itemName: '', quantity: 1, reference: '', priceTTC: '' }]);
     const [orderNotes, setOrderNotes] = useState(initialData?.orderNotes || '');
-    const [formError, setFormError] = useState(null);
     const [ownerEmail, setOwnerEmail] = useState(initialData?.orderedBy?.email || '');
-    
+    const [orderDate, setOrderDate] = useState(initialData?.orderDate || new Date().toISOString());
+    const [formError, setFormError] = useState(null);
     const [isParsingPdf, setIsParsingPdf] = useState(false);
 
     const handleFileSelectAndParse = async (event) => {
         const file = event.target.files[0];
         if (!file) return;
-
-        if (file.type !== 'application/pdf') {
-            showToast("Veuillez sélectionner un fichier PDF.", "error");
-            return;
-        }
-
+        if (file.type !== 'application/pdf') { showToast("Veuillez sélectionner un fichier PDF.", "error"); return; }
         setIsParsingPdf(true);
         setFormError(null);
-
         try {
             const fileReader = new FileReader();
             fileReader.onload = async function() {
                 const typedarray = new Uint8Array(this.result);
                 const pdf = await pdfjsLib.getDocument(typedarray).promise;
                 let fullText = '';
-
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
                     fullText += textContent.items.map(item => item.str).join(' ');
                 }
-                
                 const data = parseOrderText(fullText);
-
                 const dataFound = Object.values(data).some(value => (Array.isArray(value) ? value.length > 0 : value));
-
-                if (!dataFound) {
-                    showToast("Aucune information pertinente trouvée dans le PDF.", "error");
-                    return;
-                }
-
+                if (!dataFound) { showToast("Aucune information pertinente trouvée.", "error"); return; }
                 if (data.clientFirstName) setClientFirstName(data.clientFirstName.charAt(0).toUpperCase() + data.clientFirstName.slice(1).toLowerCase());
                 if (data.clientLastName) setClientLastName(data.clientLastName.toUpperCase());
                 if (data.clientEmail) setClientEmail(data.clientEmail);
                 if (data.clientPhone) setClientPhone(data.clientPhone);
                 if (data.receiptNumber) setReceiptNumber(data.receiptNumber);
                 if (data.orderNotes) setOrderNotes(data.orderNotes);
-
-                if (data.items && data.items.length > 0) {
-                    setItems(data.items);
-                } else {
-                    setItems([{ itemName: '', quantity: 1, reference: '', priceTTC: '' }]);
-                }
-                
-                showToast("Formulaire pré-rempli avec succès depuis le PDF.", "success");
+                if (data.items && data.items.length > 0) { setItems(data.items); } else { setItems([{ itemName: '', quantity: 1, reference: '', priceTTC: '' }]); }
+                showToast("Formulaire pré-rempli.", "success");
             };
             fileReader.readAsArrayBuffer(file);
-
-        } catch (error) {
-            console.error("Erreur d'analyse du PDF:", error);
-            showToast("Le fichier PDF n'a pas pu être lu.", "error");
-            setFormError("Une erreur est survenue lors de l'analyse du PDF.");
-        } finally {
-            setIsParsingPdf(false);
-            event.target.value = null; 
-        }
+        } catch (error) { console.error("Erreur d'analyse PDF:", error); showToast("Le PDF n'a pas pu être lu.", "error"); setFormError("Erreur d'analyse du PDF.");
+        } finally { setIsParsingPdf(false); event.target.value = null; }
     };
 
-    const handleItemChange = useCallback((index, field, value) => {
-        const newItems = [...items];
-        newItems[index][field] = value;
-        setItems(newItems);
-    }, [items]);
-
-    const handleAddItem = useCallback(() => {
-        setItems([...items, { itemName: '', quantity: 1, reference: '', priceTTC: '' }]);
-    }, [items]);
-
-    const handleRemoveItem = useCallback((index) => {
-        const newItems = items.filter((_, i) => i !== index);
-        setItems(newItems);
-    }, [items]);
-
-    const handleFirstNameChange = (e) => {
-        const value = e.target.value;
-        if (value === '') {
-            setClientFirstName('');
-        } else {
-            setClientFirstName(value.charAt(0).toUpperCase() + value.slice(1).toLowerCase());
-        }
-    };
-
-    const handleLastNameChange = (e) => {
-        setClientLastName(e.target.value.toUpperCase());
-    };
+    const handleItemChange = useCallback((index, field, value) => { const newItems = [...items]; newItems[index][field] = value; setItems(newItems); }, [items]);
+    const handleAddItem = useCallback(() => { setItems([...items, { itemName: '', quantity: 1, reference: '', priceTTC: '' }]); }, [items]);
+    const handleRemoveItem = useCallback((index) => { const newItems = items.filter((_, i) => i !== index); setItems(newItems); }, [items]);
+    const handleFirstNameChange = (e) => { const value = e.target.value; if (value === '') { setClientFirstName(''); } else { setClientFirstName(value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()); } };
+    const handleLastNameChange = (e) => { setClientLastName(e.target.value.toUpperCase()); };
 
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
         setFormError(null);
-        if (!clientFirstName || !clientLastName || !clientEmail || !clientPhone) {
-            setFormError("Veuillez remplir tous les champs client obligatoires (*).");
+        if (!clientFirstName || !clientLastName || !clientEmail || !clientPhone || !receiptNumber) {
+            setFormError("Veuillez remplir tous les champs obligatoires (*).");
             return;
         }
         const validItems = items.filter(item => item.itemName.trim() && parseInt(item.quantity, 10) > 0);
         if (validItems.length === 0) {
-            setFormError("Veuillez ajouter au moins un article valide (Nom et Quantité > 0).");
+            setFormError("Veuillez ajouter au moins un article valide.");
             return;
         }
         try {
-            await onSave({ clientFirstName: clientFirstName.trim(), clientLastName: clientLastName.trim(), clientEmail: clientEmail.trim(), clientPhone: clientPhone.trim(), receiptNumber: receiptNumber.trim(), items: validItems, orderNotes: orderNotes.trim(), ownerEmail: ownerEmail });
+            await onSave({ clientFirstName: clientFirstName.trim(), clientLastName: clientLastName.trim(), clientEmail: clientEmail.trim(), clientPhone: clientPhone.trim(), receiptNumber: receiptNumber.trim(), items: validItems, orderNotes: orderNotes.trim(), ownerEmail, orderDate });
             onClose();
-        } catch (error) {
-            console.error("Error saving order:", error);
-            setFormError("Échec de l'enregistrement.");
-        }
-    }, [clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, items, orderNotes, onSave, onClose, ownerEmail]);
+        } catch (error) { console.error("Erreur sauvegarde:", error); setFormError("Échec de l'enregistrement."); }
+    }, [clientFirstName, clientLastName, clientEmail, clientPhone, receiptNumber, items, orderNotes, onSave, onClose, ownerEmail, orderDate]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
             <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} aria-label="Fermer" className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24} /></button>
                 <h2 className="text-2xl font-bold text-white mb-6 text-center">{initialData ? 'Modifier la commande' : 'Nouvelle Commande'}</h2>
-                
                 {!initialData && (
-                    <div className="mb-6 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                        <h3 className="text-lg font-semibold text-blue-300 mb-3 flex items-center gap-2">
-                            <ReceiptText size={20} /> Remplissage Rapide par PDF
-                        </h3>
-                        <label htmlFor="pdf-upload" className={`w-full text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors ${isParsingPdf ? 'bg-gray-600' : 'bg-blue-700 hover:bg-blue-800'}`}>
-                           {isParsingPdf ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                    Analyse en cours...
-                                </>
-                            ) : (
-                                <>
-                                    <CheckCircle size={20} /> Importer un récapitulatif PDF
-                                </>
-                            )}
-                        </label>
-                        <input
-                            id="pdf-upload"
-                            type="file"
-                            accept="application/pdf"
-                            onChange={handleFileSelectAndParse}
-                            className="hidden"
-                            disabled={isParsingPdf}
-                        />
-                    </div>
+                    <div className="mb-6 bg-gray-900/50 p-4 rounded-lg border border-gray-700"><h3 className="text-lg font-semibold text-blue-300 mb-3 flex items-center gap-2"><ReceiptText size={20} /> Remplissage Rapide par PDF</h3><label htmlFor="pdf-upload" className={`w-full text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors ${isParsingPdf ? 'bg-gray-600' : 'bg-blue-700 hover:bg-blue-800'}`}>{isParsingPdf ? (<><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>Analyse en cours...</>) : (<><CheckCircle size={20} /> Importer un récapitulatif PDF</>)}</label><input id="pdf-upload" type="file" accept="application/pdf" onChange={handleFileSelectAndParse} className="hidden" disabled={isParsingPdf}/></div>
                 )}
-
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {isAdmin && initialData && (<div><h3 className="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2"><UserCheck size={20} /> Zone Administrateur</h3><div className="space-y-4 bg-gray-900/50 p-4 rounded-lg"><div><label htmlFor="owner" className="block text-sm font-medium text-gray-300 mb-2">Conseiller associé</label><select id="owner" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg">{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select></div></div></div>)}
+                    {isAdmin && initialData && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2"><UserCheck size={20} /> Zone Administrateur</h3>
+                            <div className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                                <div><label htmlFor="owner" className="block text-sm font-medium text-gray-300 mb-2">Conseiller associé</label><select id="owner" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} className="w-full bg-gray-700 border-gray-600 text-white p-3 rounded-lg">{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select></div>
+                                <div><label htmlFor="orderDate" className="block text-sm font-medium text-gray-300 mb-2">Date de commande</label><input id="orderDate" type="datetime-local" value={formatISOToDateTimeLocal(orderDate)} onChange={(e) => setOrderDate(new Date(e.target.value).toISOString())} className="w-full bg-gray-700 p-3 rounded-lg"/></div>
+                            </div>
+                        </div>
+                    )}
                     <div>
                         <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2"><User size={20} /> Informations Client</h3>
                         <div className="space-y-4">
@@ -436,29 +376,13 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
                         <div className="space-y-3">
                             {items.map((item, index) => (
                                 <div key={index} className="bg-gray-700/50 p-3 rounded-lg space-y-2">
-                                    <div className="flex-grow w-full">
-                                        <label htmlFor={`itemName-${index}`} className="block text-xs text-gray-400 mb-1">Article *</label>
-                                        <input id={`itemName-${index}`} type="text" placeholder="Nom de l'accessoire" value={item.itemName} onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} required className="w-full bg-gray-600 p-2 rounded-lg text-sm" />
-                                    </div>
+                                    <div className="flex-grow w-full"><label htmlFor={`itemName-${index}`} className="block text-xs text-gray-400 mb-1">Article *</label><input id={`itemName-${index}`} type="text" placeholder="Nom de l'accessoire" value={item.itemName || ''} onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} required className="w-full bg-gray-600 p-2 rounded-lg text-sm" /></div>
                                     <div className="grid grid-cols-3 gap-2">
-                                        <div className="flex-grow w-full">
-                                            <label htmlFor={`reference-${index}`} className="block text-xs text-gray-400 mb-1">Référence</label>
-                                            <input id={`reference-${index}`} type="text" placeholder="Référence article" value={item.reference} onChange={(e) => handleItemChange(index, 'reference', e.target.value)} className="w-full bg-gray-600 p-2 rounded-lg text-sm" />
-                                        </div>
-                                        <div className="w-full">
-                                            <label htmlFor={`priceTTC-${index}`} className="block text-xs text-gray-400 mb-1">Prix TTC *</label>
-                                            <input id={`priceTTC-${index}`} type="number" placeholder="Prix" value={item.priceTTC} onChange={(e) => handleItemChange(index, 'priceTTC', e.target.value)} required step="0.01" className="w-full bg-gray-600 p-2 rounded-lg text-sm" />
-                                        </div>
-                                        <div className="w-full">
-                                            <label htmlFor={`quantity-${index}`} className="block text-xs text-gray-400 mb-1">Qté *</label>
-                                            <input id={`quantity-${index}`} type="number" placeholder="Qté" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} required min="1" className="w-full bg-gray-600 p-2 rounded-lg text-sm" />
-                                        </div>
+                                        <div className="flex-grow w-full"><label htmlFor={`reference-${index}`} className="block text-xs text-gray-400 mb-1">Référence</label><input id={`reference-${index}`} type="text" placeholder="Référence article" value={item.reference || ''} onChange={(e) => handleItemChange(index, 'reference', e.target.value)} className="w-full bg-gray-600 p-2 rounded-lg text-sm" /></div>
+                                        <div className="w-full"><label htmlFor={`priceTTC-${index}`} className="block text-xs text-gray-400 mb-1">Prix TTC *</label><input id={`priceTTC-${index}`} type="number" placeholder="Prix" value={item.priceTTC || ''} onChange={(e) => handleItemChange(index, 'priceTTC', e.target.value)} required step="0.01" className="w-full bg-gray-600 p-2 rounded-lg text-sm" /></div>
+                                        <div className="w-full"><label htmlFor={`quantity-${index}`} className="block text-xs text-gray-400 mb-1">Qté *</label><input id={`quantity-${index}`} type="number" placeholder="Qté" value={item.quantity || 1} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} required min="1" className="w-full bg-gray-600 p-2 rounded-lg text-sm" /></div>
                                     </div>
-                                    {items.length > 1 && (
-                                        <button type="button" onClick={() => handleRemoveItem(index)} className="w-full text-red-400 hover:text-red-300 text-xs flex items-center justify-center gap-1 pt-1">
-                                            <MinusCircle size={14} /> Supprimer cet article
-                                        </button>
-                                    )}
+                                    {items.length > 1 && (<button type="button" onClick={() => handleRemoveItem(index)} className="w-full text-red-400 hover:text-red-300 text-xs flex items-center justify-center gap-1 pt-1"><MinusCircle size={14} /> Supprimer cet article</button>)}
                                 </div>
                             ))}
                         </div>
@@ -468,7 +392,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
                     <div>
                         <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2"><Info size={20} /> Informations Complémentaires</h3>
                         <div className="space-y-4">
-                            <div><label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-300 mb-2">N° de ticket (optionnel)</label><input id="receiptNumber" type="text" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} className="w-full bg-gray-700 p-3 rounded-lg" /></div>
+                            <div><label htmlFor="receiptNumber" className="block text-sm font-medium text-gray-300 mb-2">N° de ticket *</label><input id="receiptNumber" type="text" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} required className="w-full bg-gray-700 p-3 rounded-lg" /></div>
                             <div><label htmlFor="orderNotes" className="block text-sm font-medium text-gray-300 mb-2">Notes (optionnel)</label><textarea id="orderNotes" value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} rows="3" className="w-full bg-gray-700 p-3 rounded-lg"></textarea></div>
                         </div>
                     </div>
@@ -483,7 +407,7 @@ const OrderForm = ({ onSave, initialData, isSaving, onClose, isAdmin, allUsers, 
 
 const NotificationModal = ({ onConfirm, onCancel }) => { const [method, setMethod] = useState('email'); const [voicemail, setVoicemail] = useState(false); const handleConfirm = () => { onConfirm({ method, voicemail }); }; return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onCancel}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><div className="text-center"><Bell className="mx-auto h-12 w-12 text-blue-400" /><h3 className="mt-4 text-xl font-medium text-white">Comment le client a-t-il été prévenu ?</h3></div><div className="mt-6 space-y-4"><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'email' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('email')}><div className="flex items-center gap-4"><Mail size={24} className={method === 'email' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Email</p><p className="text-sm text-gray-400">Envoi automatique d'un email.</p></div></div></div><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'sms' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('sms')}><div className="flex items-center gap-4"><MessageSquareText size={24} className={method === 'sms' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par SMS</p><p className="text-sm text-gray-400">Confirmer un envoi de SMS.</p></div></div></div><div className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${method === 'phone' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}`} onClick={() => setMethod('phone')}><div className="flex items-center gap-4"><PhoneCall size={24} className={method === 'phone' ? 'text-blue-400' : 'text-gray-400'} /><div><p className="font-semibold text-white">Par Appel Téléphonique</p><p className="text-sm text-gray-400">Confirmer un appel.</p></div></div>{method === 'phone' && ( <div className="mt-4 pl-10 flex items-center"><input id="voicemail-checkbox" type="checkbox" checked={voicemail} onChange={(e) => setVoicemail(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label htmlFor="voicemail-checkbox" className="ml-2 block text-sm text-gray-300">Message vocal déposé.</label></div> )}</div></div><div className="mt-8 flex flex-col sm:flex-row justify-center gap-4"><button onClick={onCancel} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg">Annuler</button><button onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">Confirmer</button></div></div></div> ); };
 const OrderHistoryModal = ({ order, onClose }) => { const notificationStats = useMemo(() => getNotificationStats(order.history), [order.history]); return ( <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}><div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-xl border border-gray-700 relative animate-fade-in-up overflow-y-auto max-h-[90vh] custom-scrollbar mx-4 sm:mx-0" onClick={(e) => e.stopPropagation()}><button onClick={onClose} aria-label="Fermer" className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={24} /></button><h2 className="text-2xl font-bold text-white mb-2 text-center">Historique de la commande</h2>{notificationStats.total > 0 && ( <div className="bg-gray-900/50 p-4 rounded-lg mb-6 border border-gray-700"><h4 className="font-semibold text-white mb-3 text-center">Résumé des notifications ({notificationStats.total})</h4><div className="flex justify-center flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300"><span className="flex items-center gap-1.5"><Mail size={16} /> Email: <strong className="text-white">{notificationStats.email}</strong></span><span className="flex items-center gap-1.5"><MessageSquareText size={16} /> SMS: <strong className="text-white">{notificationStats.sms}</strong></span><span className="flex items-center gap-1.5"><PhoneCall size={16} /> Appels: <strong className="text-white">{notificationStats.phone}</strong></span>{notificationStats.voicemail > 0 && <span className="flex items-center gap-1.5 text-xs text-gray-400">(dont {notificationStats.voicemail} msg. vocaux)</span>}</div></div> )}<div className="space-y-4">{order.history && order.history.length > 0 ? ( order.history.slice().reverse().map((event, index) => { const Icon = getIconForHistoryAction(event.action); return ( <div key={index} className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4"><Icon size={20} className={`${getIconColorClass(event.action)} flex-shrink-0 mt-1`} /><div className="flex-1"><HistoryActionText text={event.action} /><p className="text-gray-300 text-sm">Par <span className="font-semibold">{getUserDisplayName(event.by?.email || 'N/A')}</span> le {formatOrderDate(event.timestamp)}</p>{event.note && <p className="text-gray-400 text-xs italic mt-2 border-l-2 border-gray-600 pl-2">Note: {event.note}</p>}</div></div> ); }) ) : ( <p className="text-gray-400 text-center">Aucun historique.</p> )}</div></div></div> ); };
-const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOrderStatusUpdate, isAdmin, onShowHistory, onEdit, onRequestDelete, onInitiateRollback, onNotifyClient, onInitiateRestore, isOpen, onToggleOpen, isNew }) => { const displayStatus = getEffectiveOrderStatus(order); const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500', icon: Info }; const isNotified = displayStatus === ORDER_STATUS.NOTIFIED; const notificationStats = useMemo(() => getNotificationStats(order.history), [order.history]); const showAlertForExcessiveContact = notificationStats.total >= 5; let hoursSinceNotification = 0; const lastNotificationTimestamp = findLastNotificationTimestamp(order.history); if (isNotified && lastNotificationTimestamp) { hoursSinceNotification = (Date.now() - new Date(lastNotificationTimestamp).getTime()) / (1000 * 60 * 60); } const isReNotifyLocked = isNotified && hoursSinceNotification < 24; const remainingLockHours = Math.ceil(24 - hoursSinceNotification); const canNotify = displayStatus === ORDER_STATUS.READY_FOR_PICKUP; const canBePickedUp = displayStatus === ORDER_STATUS.NOTIFIED; const canBeArchived = displayStatus === ORDER_STATUS.PICKED_UP; const statusHistory = (order.history || []).filter(e => e.action.includes('**')); const canRollback = statusHistory.length >= 2 && ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus); const canEdit = ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus); return ( <div className={`bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:ring-2 hover:ring-blue-500/50 ${showAlertForExcessiveContact ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-red-500' : (isNew ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-green-500' : '')}`}><div className="flex justify-between items-start p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={onToggleOpen}><div className="flex-1 pr-4"><h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3><div className="mt-2 space-y-1 text-sm text-gray-300">{order.clientPhone && <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400"/><span>{formatPhoneNumber(order.clientPhone)}</span></div>}{order.clientEmail && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400"/><span>{order.clientEmail}</span></div>}</div><div className="mt-3 pt-3 border-t border-gray-700/60 flex items-center flex-wrap gap-x-2 text-xs text-gray-400"><User size={14} /><span>Par</span><span className="font-semibold text-gray-300">{order.orderedBy?.name || 'N/A'}</span><span className="hidden sm:inline">le</span><span className="font-semibold text-gray-300">{formatOrderDate(order.orderDate)}</span></div></div><div className="flex flex-col items-end gap-3"><span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${statusConfig.colorClass} text-center`}>{statusConfig.label}</span><ChevronDown size={24} className={`text-gray-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`} /></div></div><div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-[1000px]' : 'max-h-0'}`}><div className="p-4 sm:p-6 border-t border-gray-700">{showAlertForExcessiveContact && (<div className="bg-red-900/70 border border-red-700 rounded-lg p-3 mb-4"><div className="flex items-center gap-3 text-red-300"><AlertTriangle size={24} /><div><h4 className="font-bold text-white">Client injoignable ({notificationStats.total} notifications)</h4><p className="text-sm text-red-300 mt-1"><b>Que faire ?</b> Envisagez une action (manager, annulation...).</p></div></div></div>)}{(order.receiptNumber || order.orderNotes) && (<div className="mb-4 pb-4 border-b border-gray-700/60 space-y-3">{order.receiptNumber && ( <div className="flex items-center gap-2.5 text-sm text-gray-300"><ReceiptText size={16} className="text-gray-400 flex-shrink-0" /><span className="font-semibold">N° ticket:</span><span className="font-mono bg-gray-700 px-2 py-0.5 rounded-md text-white">{order.receiptNumber}</span></div> )}{order.orderNotes && ( <div className="flex items-start gap-2.5 text-sm text-gray-300"><Info size={16} className="text-gray-400 mt-0.5 flex-shrink-0" /><span className="font-semibold">Notes:</span><p className="text-gray-200 italic whitespace-pre-wrap flex-1">{order.orderNotes}</p></div> )}</div>)}<h4 className="text-md font-semibold text-gray-300 mb-3">Gestion des articles :</h4><div className="space-y-3">{order.items?.map(item => (<div key={item.itemId} className="bg-gray-700/50 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-2"><div className="flex-1"><p className="text-white font-medium">{item.itemName} (Qté: {item.quantity})</p><div className="flex items-center gap-x-4 gap-y-1 text-xs text-gray-400 flex-wrap mt-1">{item.reference && ( <span className="bg-gray-600/70 text-gray-300 px-2 py-0.5 rounded-full font-mono">{item.reference}</span> )}{item.priceTTC && ( <span className="font-semibold text-blue-300">{parseFloat(item.priceTTC).toFixed(2)} € TTC</span> )}</div><p className={`mt-1 text-xs font-bold ${item.status === ITEM_STATUS.RECEIVED ? 'text-green-400' : item.status === ITEM_STATUS.CANCELLED ? 'text-red-400' : 'text-yellow-400'}`}>Statut : {item.status || 'N/A'}</p></div><div className="flex gap-2 self-start sm:self-center">{item.status === ITEM_STATUS.ORDERED && ( <> <button onClick={() => onRequestItemStatusUpdate(order.id, item.itemId, ITEM_STATUS.RECEIVED, item.itemName)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Marquer Reçu</button><button onClick={() => onCancelItem(order, item.itemId, item.itemName)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Annuler</button> </> )}</div></div>))}</div><div className="mt-4 pt-4 border-t border-gray-700"><h4 className="text-md font-semibold text-gray-300 mb-2">Actions sur la commande</h4><div className="flex flex-col sm:flex-row flex-wrap gap-2">{displayStatus === ORDER_STATUS.COMPLETE_CANCELLED && (<button onClick={() => onInitiateRestore(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Restaurer</button>)}{canRollback && <button onClick={() => onInitiateRollback(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Revenir en arrière</button>}{canNotify && <button onClick={() => onNotifyClient(order)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir le client</button>}{isNotified && (<button onClick={() => onNotifyClient(order)} disabled={isReNotifyLocked} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><BellRing size={18} /> Notifier à nouveau</button>)}{canBePickedUp && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Marquer comme Retirée</button>}{canBeArchived && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}<button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>{canEdit && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}{isAdmin && <button onClick={() => onRequestDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}</div>{isReNotifyLocked && (<div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2 animate-fade-in"><Clock size={14} className="flex-shrink-0" /><span>Prochaine notification possible dans env. {remainingLockHours}h.</span></div>)}</div></div></div></div> ); };
+const OrderCard = ({ order, onRequestItemStatusUpdate, onCancelItem, onRequestOrderStatusUpdate, isAdmin, onShowHistory, onEdit, onRequestDelete, onInitiateRollback, onNotifyClient, onInitiateRestore, isOpen, onToggleOpen, isNew }) => { const displayStatus = getEffectiveOrderStatus(order); const statusConfig = ORDER_STATUSES_CONFIG[displayStatus] || { label: displayStatus, colorClass: 'bg-gray-500', icon: Info }; const isNotified = displayStatus === ORDER_STATUS.NOTIFIED; const notificationStats = useMemo(() => getNotificationStats(order.history), [order.history]); const showAlertForExcessiveContact = notificationStats.total >= 5; let hoursSinceNotification = 0; const lastNotificationTimestamp = findLastNotificationTimestamp(order.history); if (isNotified && lastNotificationTimestamp) { hoursSinceNotification = (Date.now() - new Date(lastNotificationTimestamp).getTime()) / (1000 * 60 * 60); } const isReNotifyLocked = isNotified && hoursSinceNotification < 24; const remainingLockHours = Math.ceil(24 - hoursSinceNotification); const canNotify = displayStatus === ORDER_STATUS.READY_FOR_PICKUP; const canBePickedUp = displayStatus === ORDER_STATUS.NOTIFIED; const canBeArchived = displayStatus === ORDER_STATUS.PICKED_UP; const statusHistory = (order.history || []).filter(e => e.action.includes('**')); const canRollback = statusHistory.length >= 2 && ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus); const canEdit = ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(displayStatus); return ( <div id={order.id} className={`bg-gray-800 rounded-2xl shadow-lg flex flex-col transition-all duration-300 animate-fade-in-up hover:ring-2 hover:ring-blue-500/50 ${showAlertForExcessiveContact ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-red-500' : (isNew ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-green-500' : '')}`}><div className="flex justify-between items-start p-4 sm:p-6 cursor-pointer hover:bg-gray-700/50 rounded-t-2xl transition-colors" onClick={onToggleOpen}><div className="flex-1 pr-4"><h3 className="text-xl font-bold text-white">{order.clientFirstName} {order.clientLastName}</h3><div className="mt-2 space-y-1 text-sm text-gray-300">{order.clientPhone && <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400"/><span>{formatPhoneNumber(order.clientPhone)}</span></div>}{order.clientEmail && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400"/><span>{order.clientEmail}</span></div>}</div><div className="mt-3 pt-3 border-t border-gray-700/60 flex items-center flex-wrap gap-x-2 text-xs text-gray-400"><User size={14} /><span>Par</span><span className="font-semibold text-gray-300">{order.orderedBy?.name || 'N/A'}</span><span className="hidden sm:inline">le</span><span className="font-semibold text-gray-300">{formatOrderDate(order.orderDate)}</span></div></div><div className="flex flex-col items-end gap-3"><span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${statusConfig.colorClass} text-center`}>{statusConfig.label}</span><ChevronDown size={24} className={`text-gray-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`} /></div></div><div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-[1000px]' : 'max-h-0'}`}><div className="p-4 sm:p-6 border-t border-gray-700">{showAlertForExcessiveContact && (<div className="bg-red-900/70 border border-red-700 rounded-lg p-3 mb-4"><div className="flex items-center gap-3 text-red-300"><AlertTriangle size={24} /><div><h4 className="font-bold text-white">Client injoignable ({notificationStats.total} notifications)</h4><p className="text-sm text-red-300 mt-1"><b>Que faire ?</b> Envisagez une action (manager, annulation...).</p></div></div></div>)}{(order.receiptNumber || order.orderNotes) && (<div className="mb-4 pb-4 border-b border-gray-700/60 space-y-3">{order.receiptNumber && ( <div className="flex items-center gap-2.5 text-sm text-gray-300"><ReceiptText size={16} className="text-gray-400 flex-shrink-0" /><span className="font-semibold">N° ticket:</span><span className="font-mono bg-gray-700 px-2 py-0.5 rounded-md text-white">{order.receiptNumber}</span></div> )}{order.orderNotes && ( <div className="flex items-start gap-2.5 text-sm text-gray-300"><Info size={16} className="text-gray-400 mt-0.5 flex-shrink-0" /><span className="font-semibold">Notes:</span><p className="text-gray-200 italic whitespace-pre-wrap flex-1">{order.orderNotes}</p></div> )}</div>)}<h4 className="text-md font-semibold text-gray-300 mb-3">Gestion des articles :</h4><div className="space-y-3">{order.items?.map(item => (<div key={item.itemId} className="bg-gray-700/50 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-start gap-2"><div className="flex-1"><p className="text-white font-medium">{item.itemName} (Qté: {item.quantity})</p><div className="flex items-center gap-x-4 gap-y-1 text-xs text-gray-400 flex-wrap mt-1">{item.reference && ( <span className="bg-gray-600/70 text-gray-300 px-2 py-0.5 rounded-full font-mono">{item.reference}</span> )}{item.priceTTC && ( <span className="font-semibold text-blue-300">{parseFloat(item.priceTTC).toFixed(2)} € TTC</span> )}</div><p className={`mt-1 text-xs font-bold ${item.status === ITEM_STATUS.RECEIVED ? 'text-green-400' : item.status === ITEM_STATUS.CANCELLED ? 'text-red-400' : 'text-yellow-400'}`}>Statut : {item.status || 'N/A'}</p></div><div className="flex gap-2 self-start sm:self-center">{item.status === ITEM_STATUS.ORDERED && ( <> <button onClick={() => onRequestItemStatusUpdate(order.id, item.itemId, ITEM_STATUS.RECEIVED, item.itemName)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Marquer Reçu</button><button onClick={() => onCancelItem(order, item.itemId, item.itemName)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors">Annuler</button> </> )}</div></div>))}</div><div className="mt-4 pt-4 border-t border-gray-700"><h4 className="text-md font-semibold text-gray-300 mb-2">Actions sur la commande</h4><div className="flex flex-col sm:flex-row flex-wrap gap-2">{displayStatus === ORDER_STATUS.COMPLETE_CANCELLED && (<button onClick={() => onInitiateRestore(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Restaurer</button>)}{canRollback && <button onClick={() => onInitiateRollback(order)} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Undo2 size={18} /> Revenir en arrière</button>}{canNotify && <button onClick={() => onNotifyClient(order)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Bell size={18} /> Prévenir le client</button>}{isNotified && (<button onClick={() => onNotifyClient(order)} disabled={isReNotifyLocked} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><BellRing size={18} /> Notifier à nouveau</button>)}{canBePickedUp && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.PICKED_UP)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Marquer comme Retirée</button>}{canBeArchived && <button onClick={() => onRequestOrderStatusUpdate(order, ORDER_STATUS.ARCHIVED)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2"><Archive size={18} /> Archiver</button>}<button onClick={() => onShowHistory(order)} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><History size={18} /> Historique</button>{canEdit && <button onClick={() => onEdit(order)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Edit size={18} /> Modifier</button>}{isAdmin && <button onClick={() => onRequestDelete(order.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 sm:px-4 rounded-lg text-sm flex items-center justify-center gap-2 flex-1 sm:flex-none"><Trash2 size={18} /> Supprimer</button>}</div>{isReNotifyLocked && (<div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2 animate-fade-in"><Clock size={14} className="flex-shrink-0" /><span>Prochaine notification possible dans env. {remainingLockHours}h.</span></div>)}</div></div></div></div> ); };
 
 export default function App() {
     const [orders, setOrders] = useState([]);
@@ -508,6 +432,7 @@ export default function App() {
     const [orderToRollback, setOrderToRollback] = useState(null);
     const [showRestoreModal, setShowRestoreModal] = useState(false);
     const [orderToRestore, setOrderToRestore] = useState(null);
+    const [blockingAlert, setBlockingAlert] = useState(null);
     const [confirmation, setConfirmation] = useState({ isOpen: false, message: '', onConfirm: () => {}, confirmColor: 'bg-blue-600' });
     const [showNotificationModal, setShowNotificationModal] = useState(false);
     const [orderToNotify, setOrderToNotify] = useState(null);
@@ -619,7 +544,85 @@ export default function App() {
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) return; try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
     const handleLogout = useCallback(() => { if(auth) signOut(auth).then(() => showToast("Déconnexion réussie.", "success")); }, [auth, showToast]);
     const getCurrentUserInfo = useCallback(() => { if (!currentUser) return null; return { uid: currentUser.uid, email: currentUser.email, name: getUserDisplayName(currentUser.email), role: ADMIN_EMAILS.includes(currentUser.email) ? 'admin' : 'counselor' }; }, [currentUser]);
-    const handleSaveOrder = useCallback(async (orderData) => { if (!db || !currentUser) return; setIsSaving(true); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); try { if (editingOrder) { const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id); const itemsToUpdate = editingOrder.items || []; const updatedItems = orderData.items.map((newItem) => { const existing = itemsToUpdate.find(e => e.itemName === newItem.itemName); return existing ? { ...existing, quantity: newItem.quantity, reference: newItem.reference, priceTTC: newItem.priceTTC } : { ...newItem, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED }; }); const updatePayload = { clientFirstName: orderData.clientFirstName, clientLastName: orderData.clientLastName, clientEmail: orderData.clientEmail, clientPhone: orderData.clientPhone, receiptNumber: orderData.receiptNumber, orderNotes: orderData.orderNotes, items: updatedItems }; const historyEvents = [...(editingOrder.history || [])]; const originalOwnerEmail = editingOrder.orderedBy?.email; const newOwnerEmail = orderData.ownerEmail; if (isAdmin && originalOwnerEmail !== newOwnerEmail) { const newOwner = allUsers.find(u => u.email === newOwnerEmail); if (newOwner) { updatePayload.orderedBy = { email: newOwner.email, name: newOwner.name, uid: editingOrder.orderedBy.uid, role: ADMIN_EMAILS.includes(newOwner.email) ? 'admin' : 'counselor' }; historyEvents.push({ timestamp: now, action: `Conseiller associé changé de **${editingOrder.orderedBy.name}** à **${newOwner.name}**`, by: userInfo }); } } historyEvents.push({ timestamp: now, action: "Commande **modifiée**", by: userInfo }); updatePayload.history = historyEvents; await updateDoc(orderRef, updatePayload); showToast("Commande modifiée !", 'success'); } else { const itemsWithStatus = orderData.items.map(item => ({ ...item, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED })); const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande **créée**`, by: userInfo }]}; delete newOrder.ownerEmail; const newDocRef = await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder); showToast("Commande ajoutée !", 'success'); setOpenCardId(newDocRef.id); } setShowOrderForm(false); setEditingOrder(null); } catch (e) { console.error(e); showToast("Échec.", 'error'); } finally { setIsSaving(false); } }, [db, currentUser, editingOrder, allUsers, isAdmin, showToast, getCurrentUserInfo]);
+    
+    const handleSaveOrder = useCallback(async (orderData) => {
+        if (!db || !currentUser) return;
+
+        if (!editingOrder) {
+            const ticket = orderData.receiptNumber.trim();
+            const duplicateOrder = orders.find(o => o.receiptNumber && o.receiptNumber.trim().toLowerCase() === ticket.toLowerCase());
+
+            if (duplicateOrder) {
+                setBlockingAlert({
+                    title: "Doublon Détecté",
+                    message: `Ce N° de ticket est déjà utilisé par la commande de ${duplicateOrder.clientFirstName} ${duplicateOrder.clientLastName}.`,
+                    buttonText: "Voir la Fiche Existante",
+                    onAction: () => {
+                        setBlockingAlert(null);
+                        setShowOrderForm(false);
+                        setOpenCardId(duplicateOrder.id);
+                        setTimeout(() => {
+                            document.getElementById(duplicateOrder.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                    }
+                });
+                return; 
+            }
+        }
+
+        setIsSaving(true);
+        const userInfo = getCurrentUserInfo();
+        const now = new Date().toISOString();
+        try {
+            if (editingOrder) {
+                const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, editingOrder.id);
+                const updatePayload = { 
+                    clientFirstName: orderData.clientFirstName,
+                    clientLastName: orderData.clientLastName,
+                    clientEmail: orderData.clientEmail,
+                    clientPhone: orderData.clientPhone,
+                    receiptNumber: orderData.receiptNumber,
+                    orderNotes: orderData.orderNotes,
+                    items: orderData.items,
+                    orderDate: orderData.orderDate // La nouvelle date modifiable
+                };
+
+                const historyEvents = [...(editingOrder.history || [])];
+                const originalOwnerEmail = editingOrder.orderedBy?.email;
+                const newOwnerEmail = orderData.ownerEmail;
+                if (isAdmin && originalOwnerEmail !== newOwnerEmail) {
+                    const newOwner = allUsers.find(u => u.email === newOwnerEmail);
+                    if (newOwner) {
+                        updatePayload.orderedBy = { email: newOwner.email, name: newOwner.name, uid: editingOrder.orderedBy.uid, role: ADMIN_EMAILS.includes(newOwner.email) ? 'admin' : 'counselor' };
+                        historyEvents.push({ timestamp: now, action: `Conseiller associé changé de **${editingOrder.orderedBy.name}** à **${newOwner.name}**`, by: userInfo });
+                    }
+                }
+                if (orderData.orderDate !== editingOrder.orderDate) {
+                    historyEvents.push({ timestamp: now, action: `Date de commande modifiée au **${formatOrderDate(orderData.orderDate)}**`, by: userInfo });
+                }
+
+                historyEvents.push({ timestamp: now, action: "Commande **modifiée**", by: userInfo });
+                updatePayload.history = historyEvents;
+                await updateDoc(orderRef, updatePayload);
+                showToast("Commande modifiée !", 'success');
+            } else {
+                const itemsWithStatus = orderData.items.map(item => ({ ...item, itemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, status: ITEM_STATUS.ORDERED }));
+                const newOrder = { ...orderData, items: itemsWithStatus, orderedBy: userInfo, orderDate: now, currentStatus: ORDER_STATUS.ORDERED, history: [{ timestamp: now, action: `Commande **créée**`, by: userInfo }]};
+                delete newOrder.ownerEmail;
+                const newDocRef = await addDoc(collection(db, `artifacts/${APP_ID}/public/data/orders`), newOrder);
+                showToast("Commande ajoutée !", 'success');
+                setOpenCardId(newDocRef.id);
+            }
+            setShowOrderForm(false);
+            setEditingOrder(null);
+        } catch (e) {
+            console.error(e);
+            showToast("Échec.", 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    }, [db, currentUser, editingOrder, orders, showToast, getCurrentUserInfo, isAdmin, allUsers]);
+    
     const handleUpdateItemStatus = useCallback(async (orderId, itemId, newStatus, itemName) => { if (!db || !currentUser) return; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: newStatus } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' marqué comme **${newStatus}**`, by: userInfo }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' mis à jour !`, 'success'); }, [db, currentUser, orders, getCurrentUserInfo, showToast]);
     const handleConfirmCancelItem = useCallback(async (note) => { if (!itemToCancel) return; const { orderId, itemId, itemName } = itemToCancel; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderId); const orderToUpdate = orders.find(o => o.id === orderId); if (!orderToUpdate) return; const newItems = orderToUpdate.items.map(item => item.itemId === itemId ? { ...item, status: ITEM_STATUS.CANCELLED } : item); const updatedOrder = { ...orderToUpdate, items: newItems }; const newGlobalStatus = getDerivedOrderStatus(updatedOrder); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: `Article '${itemName}' **annulé**`, by: userInfo, note: note.trim() }; await updateDoc(orderRef, { items: newItems, currentStatus: newGlobalStatus, history: [...(orderToUpdate.history || []), historyEvent]}); showToast(`'${itemName}' annulé.`, 'success'); setShowItemCancelModal(false); setItemToCancel(null); }, [db, orders, itemToCancel, getCurrentUserInfo, showToast]);
     const handleConfirmRestore = useCallback(async (reason) => { if (!db || !currentUser || !orderToRestore) return; const orderRef = doc(db, `artifacts/${APP_ID}/public/data/orders`, orderToRestore.id); const restoredItems = orderToRestore.items.map(item => ({ ...item, status: ITEM_STATUS.ORDERED })); const newStatus = getDerivedOrderStatus({ ...orderToRestore, items: restoredItems }); const userInfo = getCurrentUserInfo(); const now = new Date().toISOString(); const historyEvent = { timestamp: now, action: "Commande **restaurée** depuis l'état annulé", by: userInfo, note: reason.trim() }; try { await updateDoc(orderRef, { items: restoredItems, currentStatus: newStatus, history: [...(orderToRestore.history || []), historyEvent] }); showToast("Commande restaurée avec succès !", 'success'); } catch (error) { console.error("Erreur lors de la restauration :", error); showToast("Échec de la restauration.", 'error'); } finally { setShowRestoreModal(false); setOrderToRestore(null); } }, [db, currentUser, orderToRestore, showToast, getCurrentUserInfo]);
@@ -646,6 +649,7 @@ export default function App() {
             <TailwindColorSafelist />
             <AnimationStyles />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {blockingAlert && <AlertModal title={blockingAlert.title} message={blockingAlert.message} buttonText={blockingAlert.buttonText} onAction={blockingAlert.onAction} />}
             {confirmation.isOpen && ( <ConfirmationModal message={confirmation.message} onConfirm={confirmation.onConfirm} onCancel={closeConfirmation} confirmColor={confirmation.confirmColor} /> )}
             {showItemCancelModal && ( <CancellationModal title={`Annuler l'article "${itemToCancel?.itemName}"`} onConfirm={handleConfirmCancelItem} onCancel={() => setShowItemCancelModal(false)} isLastActiveItem={itemToCancel?.isLastActiveItem}/> )}
             {showOrderHistory && selectedOrderForHistory && ( <OrderHistoryModal order={selectedOrderForHistory} onClose={() => setShowOrderHistory(false)} /> )}
