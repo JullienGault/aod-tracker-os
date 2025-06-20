@@ -518,6 +518,14 @@ export default function App() {
     const [toast, setToast] = useState(null);
     const [openCardId, setOpenCardId] = useState(null);
 
+    const handleResetFilters = () => {
+        setSearchTerm('');
+        setSelectedStatusFilter('All');
+        setSelectedAdvisorFilter('All');
+    };
+
+    const isFilterActive = searchTerm.trim() !== '' || selectedStatusFilter !== 'All' || selectedAdvisorFilter !== 'All';
+
     useEffect(() => { document.title = "AOD Tracker 2.0"; }, []);
 
     useEffect(() => {
@@ -658,11 +666,43 @@ export default function App() {
                         <div><p className="text-gray-400 text-sm">Commandes du jour</p><p className="text-2xl font-bold text-white">{todaysOrdersCount}</p></div>
                     </div>
                     <div className="bg-gray-800/50 rounded-2xl p-4 md:col-span-3">
-                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                              <div className="relative flex-grow sm:col-span-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" /></div>
-                              <div className="relative sm:col-span-1"><select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}><option value="All">Tous les statuts</option>{Object.values(ORDER_STATUSES_CONFIG).filter(s => ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(s.label)).map(status => ( <option key={status.label} value={status.label}>{status.label}</option> )) }</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                              <div className="relative sm:col-span-1"><select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full"><option value="All">Tous les conseillers</option>{allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                         </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="relative flex-grow sm:col-span-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Nom, tél, article, réf..." 
+                                    value={searchTerm} 
+                                    onChange={(e) => setSearchTerm(e.target.value)} 
+                                    className="w-full bg-gray-700/50 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white" 
+                                />
+                            </div>
+                            <div className="relative sm:col-span-1">
+                                <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full" disabled={viewMode === 'archived'}>
+                                    <option value="All">Tous les statuts</option>
+                                    {Object.values(ORDER_STATUSES_CONFIG).filter(s => ![ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED].includes(s.label)).map(status => ( <option key={status.label} value={status.label}>{status.label}</option> )) }
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                            <div className="relative sm:col-span-1">
+                                <select value={selectedAdvisorFilter} onChange={(e) => setSelectedAdvisorFilter(e.target.value)} className="bg-gray-700/50 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none pr-8 cursor-pointer w-full">
+                                    <option value="All">Tous les conseillers</option>
+                                    {allUsers.map(user => (<option key={user.email} value={user.email}>{user.name}</option>))}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        </div>
+                        {isFilterActive && (
+                            <div className="mt-3 text-center">
+                                <button 
+                                    onClick={handleResetFilters}
+                                    className="text-blue-400 hover:text-blue-300 text-xs font-semibold flex items-center gap-1.5 mx-auto"
+                                >
+                                    <XCircle size={14} />
+                                    Réinitialiser les filtres
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
                 {dbError && <div className="bg-red-500/20 text-red-300 p-4 rounded-lg mb-6">{dbError}</div>}
