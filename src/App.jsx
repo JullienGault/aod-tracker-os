@@ -11,176 +11,32 @@ import {
     MessageSquareText, PhoneCall, BellRing, Clock, CalendarCheck2, FileUp, FilePenLine
 } from 'lucide-react';
 
-// Importation de la bibliothèque PDF
-import * as pdfjs from 'pdfjs-dist/build/pdf';
-
-// CONFIGURATION DÉFINITIVE AVEC L'URL CDN VÉRIFIÉE (JSDELIVR)
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.2.67/build/pdf.worker.min.js`;
+// La bibliothèque PDF a été entièrement supprimée.
 
 // =================================================================
 // CONFIGURATION & CONSTANTES DE L'APPLICATION
 // =================================================================
-
-const firebaseConfig = {
-    apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg",
-    authDomain: "aod-tracker-os.firebaseapp.com",
-    projectId: "aod-tracker-os",
-    storageBucket: "aod-tracker-os.appspot.com",
-    messagingSenderId: "429289937311",
-    appId: "1:429289937311:web:1ab993b09899afc2b245aa",
-};
-
+const firebaseConfig = { apiKey: "AIzaSyBn-xE-Zf4JvIKKQNZBus8AvNmJLMeKPdg", authDomain: "aod-tracker-os.firebaseapp.com", projectId: "aod-tracker-os", storageBucket: "aod-tracker-os.appspot.com", messagingSenderId: "429289937311", appId: "1:429289937311:web:1ab993b09899afc2b245aa" };
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-aod-app';
-
-const ADMIN_EMAILS = [
-    "jullien.gault@orange-store.com",
-    "marvyn.ammiche@orange-store.com"
-];
-
-const SPECIAL_USER_NAMES = {
-    "jullien.gault@orange-store.com": "Jullien",
-    "marvyn.ammiche@orange-store.com": "Marvyn"
-};
-
-const ITEM_STATUS = {
-    ORDERED: 'Commandé',
-    RECEIVED: 'Reçu',
-    CANCELLED: 'Annulé',
-};
-
-const ORDER_STATUS = {
-    ORDERED: 'Commandé',
-    PARTIALLY_RECEIVED: 'Partiellement Reçu',
-    READY_FOR_PICKUP: 'Prêt pour retrait',
-    NOTIFIED: 'Client Prévenu',
-    PICKED_UP: 'Retirée',
-    ARCHIVED: 'Archivé',
-    COMPLETE_CANCELLED: 'Annulée'
-};
-
-const ORDER_STATUSES_CONFIG = {
-    [ORDER_STATUS.ORDERED]: { label: 'Commandé', colorClass: 'bg-yellow-500', icon: Package },
-    [ORDER_STATUS.PARTIALLY_RECEIVED]: { label: 'Partiellement Reçu', colorClass: 'bg-blue-400', icon: FileWarning },
-    [ORDER_STATUS.READY_FOR_PICKUP]: { label: 'Prêt pour retrait', colorClass: 'bg-green-500', icon: CheckCircle },
-    [ORDER_STATUS.NOTIFIED]: { label: 'Client Prévenu', colorClass: 'bg-blue-500', icon: Bell },
-    [ORDER_STATUS.PICKED_UP]: { label: 'Retirée', colorClass: 'bg-purple-600', icon: UserCheck },
-    [ORDER_STATUS.ARCHIVED]: { label: 'Archivé', colorClass: 'bg-gray-600', icon: Archive },
-    [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Annulée', colorClass: 'bg-red-700', icon: XCircle }
-};
-
-const getUserDisplayName = (email) => {
-    if (!email) return 'N/A';
-    if (SPECIAL_USER_NAMES[email]) {
-        return SPECIAL_USER_NAMES[email];
-    }
-    const namePart = email.split('@')[0].split('.')[0];
-    return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-};
+const ADMIN_EMAILS = [ "jullien.gault@orange-store.com", "marvyn.ammiche@orange-store.com" ];
+const SPECIAL_USER_NAMES = { "jullien.gault@orange-store.com": "Jullien", "marvyn.ammiche@orange-store.com": "Marvyn" };
+const ITEM_STATUS = { ORDERED: 'Commandé', RECEIVED: 'Reçu', CANCELLED: 'Annulé' };
+const ORDER_STATUS = { ORDERED: 'Commandé', PARTIALLY_RECEIVED: 'Partiellement Reçu', READY_FOR_PICKUP: 'Prêt pour retrait', NOTIFIED: 'Client Prévenu', PICKED_UP: 'Retirée', ARCHIVED: 'Archivé', COMPLETE_CANCELLED: 'Annulée' };
+const ORDER_STATUSES_CONFIG = { [ORDER_STATUS.ORDERED]: { label: 'Commandé', colorClass: 'bg-yellow-500', icon: Package }, [ORDER_STATUS.PARTIALLY_RECEIVED]: { label: 'Partiellement Reçu', colorClass: 'bg-blue-400', icon: FileWarning }, [ORDER_STATUS.READY_FOR_PICKUP]: { label: 'Prêt pour retrait', colorClass: 'bg-green-500', icon: CheckCircle }, [ORDER_STATUS.NOTIFIED]: { label: 'Client Prévenu', colorClass: 'bg-blue-500', icon: Bell }, [ORDER_STATUS.PICKED_UP]: { label: 'Retirée', colorClass: 'bg-purple-600', icon: UserCheck }, [ORDER_STATUS.ARCHIVED]: { label: 'Archivé', colorClass: 'bg-gray-600', icon: Archive }, [ORDER_STATUS.COMPLETE_CANCELLED]: { label: 'Annulée', colorClass: 'bg-red-700', icon: XCircle } };
+const getUserDisplayName = (email) => { if (!email) return 'N/A'; if (SPECIAL_USER_NAMES[email]) { return SPECIAL_USER_NAMES[email]; } const namePart = email.split('@')[0].split('.')[0]; return namePart.charAt(0).toUpperCase() + namePart.slice(1); };
 
 // =================================================================
 // FONCTIONS UTILITAIRES PARTAGÉES
 // =================================================================
-
-const isDateToday = (isoString) => {
-    if (!isoString) return false;
-    try {
-        const date = new Date(isoString);
-        const today = new Date();
-        return date.getDate() === today.getDate() &&
-               date.getMonth() === today.getMonth() &&
-               date.getFullYear() === today.getFullYear();
-    } catch (e) {
-        return false;
-    }
-};
-
-const getNotificationStats = (history) => {
-    if (!history) return { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 };
-    return history.reduce((acc, event) => {
-        if (event.action.includes('prévenu')) {
-            acc.total++;
-            if (event.action.includes('Email')) acc.email++;
-            if (event.action.includes('SMS')) acc.sms++;
-            if (event.action.includes('Appel')) {
-                acc.phone++;
-                if (event.note && event.note.includes('Message vocal')) { acc.voicemail++; }
-            }
-        }
-        return acc;
-    }, { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 });
-};
-
-const findLastNotificationTimestamp = (history) => {
-    if (!history) return null;
-    for (let i = history.length - 1; i >= 0; i--) {
-        if (history[i].action.includes('prévenu')) {
-            return history[i].timestamp;
-        }
-    }
-    return null;
-};
-
-const getDerivedOrderStatus = (order) => {
-    if (!order || !order.items || order.items.length === 0) return order.currentStatus;
-    const activeItems = order.items.filter(item => item.status !== ITEM_STATUS.CANCELLED);
-    if (activeItems.length === 0) return ORDER_STATUS.COMPLETE_CANCELLED;
-    const activeStatuses = activeItems.map(item => item.status);
-    const allReceived = activeStatuses.every(status => status === ITEM_STATUS.RECEIVED);
-    const someReceived = activeStatuses.some(status => status === ITEM_STATUS.RECEIVED);
-    if (allReceived) return ORDER_STATUS.READY_FOR_PICKUP;
-    if (someReceived) return ORDER_STATUS.PARTIALLY_RECEIVED;
-    return ORDER_STATUS.ORDERED;
-};
-
-const getEffectiveOrderStatus = (order) => {
-    if (!order) return null;
-    const advancedStatuses = [ORDER_STATUS.NOTIFIED, ORDER_STATUS.PICKED_UP, ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED];
-    if (advancedStatuses.includes(order.currentStatus)) return order.currentStatus;
-    return getDerivedOrderStatus(order);
-};
-
-const getIconForHistoryAction = (action) => {
-    if (!action) return History;
-    const lowerCaseAction = action.toLowerCase();
-    if (lowerCaseAction.includes('créée')) return Package;
-    if (lowerCaseAction.includes('prévenu')) return Bell;
-    if (lowerCaseAction.includes('retirée')) return UserCheck;
-    if (lowerCaseAction.includes('archivée')) return Archive;
-    if (lowerCaseAction.includes('reçu')) return CheckCircle;
-    if (lowerCaseAction.includes('annulé')) return XCircle;
-    if (lowerCaseAction.includes('modifiée')) return Edit;
-    if (lowerCaseAction.includes('retour arrière')) return Undo2;
-    return History;
-};
-
-const getIconColorClass = (action) => {
-    if (!action) return 'text-gray-400';
-    const lowerCaseAction = action.toLowerCase();
-    if (lowerCaseAction.includes('créée') || lowerCaseAction.includes('retour arrière')) return 'text-yellow-400';
-    if (lowerCaseAction.includes('reçu')) return 'text-green-400';
-    if (lowerCaseAction.includes('prévenu')) return 'text-blue-400';
-    if (lowerCaseAction.includes('retirée') || lowerCaseAction.includes('modifiée')) return 'text-purple-400';
-    if (lowerCaseAction.includes('annulé')) return 'text-red-400';
-    if (lowerCaseAction.includes('archivée')) return 'text-gray-500';
-    return 'text-gray-400';
-};
-
-const formatPhoneNumber = (phoneStr) => {
-    if (!phoneStr) return null;
-    const cleaned = ('' + phoneStr).replace(/\D/g, '');
-    const match = cleaned.match(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
-    if (match) return `${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]}`;
-    return cleaned;
-};
-
-const formatOrderDate = (isoString) => {
-    if (!isoString) return 'Date inconnue';
-    try {
-        return new Date(isoString).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-        return 'Date invalide';
-    }
-};
+const isDateToday = (isoString) => { if (!isoString) return false; try { const date = new Date(isoString); const today = new Date(); return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); } catch (e) { return false; } };
+const getNotificationStats = (history) => { if (!history) return { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 }; return history.reduce((acc, event) => { if (event.action.includes('prévenu')) { acc.total++; if (event.action.includes('Email')) acc.email++; if (event.action.includes('SMS')) acc.sms++; if (event.action.includes('Appel')) { acc.phone++; if (event.note && event.note.includes('Message vocal')) { acc.voicemail++; } } } return acc; }, { email: 0, sms: 0, phone: 0, voicemail: 0, total: 0 }); };
+const findLastNotificationTimestamp = (history) => { if (!history) return null; for (let i = history.length - 1; i >= 0; i--) { if (history[i].action.includes('prévenu')) { return history[i].timestamp; } } return null; };
+const getDerivedOrderStatus = (order) => { if (!order || !order.items || order.items.length === 0) return order.currentStatus; const activeItems = order.items.filter(item => item.status !== ITEM_STATUS.CANCELLED); if (activeItems.length === 0) return ORDER_STATUS.COMPLETE_CANCELLED; const activeStatuses = activeItems.map(item => item.status); const allReceived = activeStatuses.every(status => status === ITEM_STATUS.RECEIVED); const someReceived = activeStatuses.some(status => status === ITEM_STATUS.RECEIVED); if (allReceived) return ORDER_STATUS.READY_FOR_PICKUP; if (someReceived) return ORDER_STATUS.PARTIALLY_RECEIVED; return ORDER_STATUS.ORDERED; };
+const getEffectiveOrderStatus = (order) => { if (!order) return null; const advancedStatuses = [ORDER_STATUS.NOTIFIED, ORDER_STATUS.PICKED_UP, ORDER_STATUS.ARCHIVED, ORDER_STATUS.COMPLETE_CANCELLED]; if (advancedStatuses.includes(order.currentStatus)) return order.currentStatus; return getDerivedOrderStatus(order); };
+const getIconForHistoryAction = (action) => { if (!action) return History; const lowerCaseAction = action.toLowerCase(); if (lowerCaseAction.includes('créée')) return Package; if (lowerCaseAction.includes('prévenu')) return Bell; if (lowerCaseAction.includes('retirée')) return UserCheck; if (lowerCaseAction.includes('archivée')) return Archive; if (lowerCaseAction.includes('reçu')) return CheckCircle; if (lowerCaseAction.includes('annulé')) return XCircle; if (lowerCaseAction.includes('modifiée')) return Edit; if (lowerCaseAction.includes('retour arrière')) return Undo2; return History; };
+const getIconColorClass = (action) => { if (!action) return 'text-gray-400'; const lowerCaseAction = action.toLowerCase(); if (lowerCaseAction.includes('créée') || lowerCaseAction.includes('retour arrière')) return 'text-yellow-400'; if (lowerCaseAction.includes('reçu')) return 'text-green-400'; if (lowerCaseAction.includes('prévenu')) return 'text-blue-400'; if (lowerCaseAction.includes('retirée') || lowerCaseAction.includes('modifiée')) return 'text-purple-400'; if (lowerCaseAction.includes('annulé')) return 'text-red-400'; if (lowerCaseAction.includes('archivée')) return 'text-gray-500'; return 'text-gray-400'; };
+const formatPhoneNumber = (phoneStr) => { if (!phoneStr) return null; const cleaned = ('' + phoneStr).replace(/\D/g, ''); const match = cleaned.match(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/); if (match) return `${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]}`; return cleaned; };
+const formatOrderDate = (isoString) => { if (!isoString) return 'Date inconnue'; try { return new Date(isoString).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return 'Date invalide'; } };
 
 // =================================================================
 // COMPOSANTS DE L'INTERFACE UTILISATEUR (UI)
@@ -231,7 +87,6 @@ export default function App() {
     const [viewMode, setViewMode] = useState('active');
     const [toast, setToast] = useState(null);
     const [openCardId, setOpenCardId] = useState(null);
-    const fileInputRef = useRef(null);
     const [showCreationChoiceModal, setShowCreationChoiceModal] = useState(false);
 
     useEffect(() => { document.title = "AOD Tracker 2.0"; }, []);
@@ -303,20 +158,20 @@ export default function App() {
         setEditingOrder(order); 
         setShowOrderForm(true); 
     }, []);
-
+    
     const handleManualCreate = () => {
         setShowCreationChoiceModal(false);
-        setEditingOrder(null);
+        setEditingOrder(null); 
         setShowOrderForm(true);
     };
 
     const handlePdfImport = () => {
         setShowCreationChoiceModal(false);
-        fileInputRef.current.click();
+        setShowPdfPasteModal(true);
     };
 
     const parseOrderFromText = useCallback((text) => {
-        console.log("Texte brut extrait du PDF pour débogage :\n", text);
+        console.log("Texte brut extrait pour débogage :\n", text);
         const orderData = { clientFirstName: '', clientLastName: '', clientEmail: '', clientPhone: '', receiptNumber: '', items: [] };
         const refMatch = text.match(/N° de récapitulatif de commande\s+([A-Z0-9]+)/i);
         if (refMatch) { orderData.receiptNumber = refMatch[1]; }
@@ -349,31 +204,17 @@ export default function App() {
         return orderData;
     }, []);
 
-    const handlePdfFileChange = useCallback(async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        showToast("Lecture du PDF en cours...", "info");
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const pdf = await pdfjs.getDocument(data).promise;
-                let fullText = '';
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
-                }
-                const parsedData = parseOrderFromText(fullText);
-                handleEditOrder(parsedData); 
-                showToast("Données importées ! Veuillez vérifier.", "success");
-            } catch (error) {
-                console.error("Erreur PDF:", error);
-                showToast("Impossible de lire ce PDF.", "error");
-            }
-        };
-        reader.readAsArrayBuffer(file);
-        event.target.value = null; 
+    const handleParsePastedText = useCallback((text) => {
+        setShowPdfPasteModal(false);
+        showToast("Analyse du texte en cours...", "info");
+        try {
+            const parsedData = parseOrderFromText(text);
+            handleEditOrder(parsedData);
+            showToast("Données importées ! Veuillez vérifier.", "success");
+        } catch (error) {
+            console.error("Erreur d'analyse:", error);
+            showToast("Impossible d'analyser ce texte.", "error");
+        }
     }, [showToast, handleEditOrder, parseOrderFromText]);
 
     const handleLogin = useCallback(async (email, password) => { setLoginError(null); if (!auth) return; try { await signInWithEmailAndPassword(auth, email, password); setShowLogin(false); } catch (error) { setLoginError("Email ou mot de passe incorrect."); showToast("Échec de la connexion.", 'error'); } }, [auth, showToast]);
@@ -417,7 +258,6 @@ export default function App() {
                 </header>
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 mb-6">
                     <button onClick={() => setShowCreationChoiceModal(true)} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><PlusCircle size={20} /> Nouvelle Commande</button>
-                    <input type="file" ref={fileInputRef} onChange={handlePdfFileChange} accept=".pdf" style={{ display: 'none' }} />
                     <div className="flex-grow"></div>
                     {viewMode === 'active' ? ( <button onClick={() => setViewMode('archived')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><Archive size={20} /> Voir les Archives</button> ) : ( <button onClick={() => setViewMode('active')} className="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-base"><List size={20} /> Commandes Actives</button> )}
                 </div>
